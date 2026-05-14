@@ -16,4 +16,5 @@ wf-market.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd.workspace = true
+capture_wayland = { path = "../capture_wayland" }
 futures-util.workspace = true

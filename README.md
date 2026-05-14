@@ -94,7 +94,8 @@ This crate should not own desktop windows, hotkeys, or OS capture handles. Those
 
 These crates remain the low-level building blocks:
 
-- `capture`: captures the Warframe window or screen.
+- `capture`: defines the screen-capture abstraction and shared capture types.
+- `capture_wayland`: captures a selected screen through the Wayland desktop portal and PipeWire.
 - `crop`: extracts Warframe UI regions from screenshots.
 - `ocr`: reads item text from cropped UI images.
 
@@ -104,6 +105,7 @@ The intended dependency direction is:
 app
   -> info_core
   -> capture
+  -> capture_wayland
   -> crop
   -> ocr
 
@@ -111,7 +113,7 @@ overlay
   -> info_core
 ```
 
-In this sketch, the arrows from `app` are parallel dependencies. The exact graph may change. For example, `info_core` may depend on crop/OCR if it owns full pipeline coordination, while capture may stay app-owned because it touches desktop sessions and OS handles.
+In this sketch, the arrows from `app` are parallel dependencies. The exact graph may change. For example, `info_core` may depend on crop/OCR if it owns full pipeline coordination, while concrete capture backends may stay app-owned because they touch desktop sessions and OS handles.
 
 ## Process Model
 

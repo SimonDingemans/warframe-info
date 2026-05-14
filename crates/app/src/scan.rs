@@ -7,11 +7,12 @@ pub(crate) struct ScanReport {
 }
 
 pub(crate) fn should_request_screen_capture_permission() -> bool {
-    cfg!(target_os = "linux") && std::env::var_os("WAYLAND_DISPLAY").is_some()
+    screen_capture().capabilities().permission_request
 }
 
 pub(crate) async fn request_screen_capture_permission() -> Result<(), String> {
-    capture::request_screen_capture_permission()
+    screen_capture()
+        .request_permission()
         .await
         .map_err(|error| error.to_string())
 }
@@ -19,7 +20,7 @@ pub(crate) async fn request_screen_capture_permission() -> Result<(), String> {
 pub(crate) fn reset_screen_capture_restore_token() -> Result<(), String> {
     let mut errors = Vec::new();
 
-    if let Err(error) = capture::reset_screen_capture_restore_token() {
+    if let Err(error) = screen_capture().reset_permission_state() {
         errors.push(error.to_string());
     }
 
@@ -35,7 +36,8 @@ pub(crate) fn reset_screen_capture_restore_token() -> Result<(), String> {
 }
 
 pub(crate) async fn run_scan(kind: ScanKind) -> Result<ScanReport, String> {
-    let screenshot = capture::capture_screen()
+    let screenshot = screen_capture()
+        .capture_screen()
         .await
         .map_err(|error| error.to_string())?;
     let overlay_output_size = screenshot.source.map(|source| source.size);
@@ -48,4 +50,16 @@ pub(crate) async fn run_scan(kind: ScanKind) -> Result<ScanReport, String> {
         output,
         overlay_output_size,
     })
+}
+
+fn screen_capture() -> Box<dyn capture::ScreenCapture> {
+    #[cfg(target_os = "linux")]
+    {
+        Box::new(capture_wayland::WaylandCapture::new())
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        Box::new(capture::UnsupportedCapture)
+    }
 }

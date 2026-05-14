@@ -4,10 +4,5 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-ashpd.workspace = true
 image.workspace = true
-pipewire.workspace = true
 thiserror.workspace = true
-
-[dev-dependencies]
-tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread"] }

@@ -3,9 +3,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use capture::ScreenCapture;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let screenshot = capture::capture_screen().await?;
+    let screenshot = capture_wayland::WaylandCapture::new()
+        .capture_screen()
+        .await?;
     let width = screenshot.image.width();
     let height = screenshot.image.height();
     let file_name = format!("screenshot_{width}x{height}.png");

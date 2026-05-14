@@ -16,27 +16,38 @@ use image::{DynamicImage, RgbaImage};
 use pipewire as pw;
 use pw::{properties::properties, spa};
 
-use crate::{
-    CaptureError, CaptureFuture, CapturePermissionFuture, CaptureResult, ScreenCapture,
-    ScreenCaptureSource, Screenshot,
+use capture::{
+    CaptureCapabilities, CaptureError, CaptureFuture, CapturePermissionFuture, CaptureResult,
+    ScreenCapture, ScreenCaptureSource, Screenshot,
 };
 
 #[derive(Debug, Clone, Default)]
-pub struct LinuxWaylandCapture;
+pub struct WaylandCapture;
 
-impl LinuxWaylandCapture {
+impl WaylandCapture {
     pub fn new() -> Self {
         Self
     }
 }
 
-impl ScreenCapture for LinuxWaylandCapture {
+impl ScreenCapture for WaylandCapture {
+    fn capabilities(&self) -> CaptureCapabilities {
+        CaptureCapabilities {
+            permission_request: is_wayland_session(),
+            permission_reset: true,
+        }
+    }
+
     fn capture_screen(&self) -> CaptureFuture<'_> {
         Box::pin(async { capture_screen_with_portal().await })
     }
 
     fn request_permission(&self) -> CapturePermissionFuture<'_> {
         Box::pin(async { request_screen_capture_permission_with_portal().await })
+    }
+
+    fn reset_permission_state(&self) -> CaptureResult<()> {
+        reset_screencast_token()
     }
 }
 
@@ -45,8 +56,8 @@ pub fn reset_screencast_token() -> CaptureResult<()> {
 }
 
 async fn capture_screen_with_portal() -> CaptureResult<Screenshot> {
-    if std::env::var_os("WAYLAND_DISPLAY").is_none() {
-        return Err(CaptureError::NotWaylandSession);
+    if !is_wayland_session() {
+        return Err(not_wayland_session());
     }
 
     let (stream, fd) = open_screen_stream().await?;
@@ -57,51 +68,57 @@ async fn capture_screen_with_portal() -> CaptureResult<Screenshot> {
 }
 
 async fn request_screen_capture_permission_with_portal() -> CaptureResult<()> {
-    if std::env::var_os("WAYLAND_DISPLAY").is_none() {
-        return Err(CaptureError::NotWaylandSession);
+    if !is_wayland_session() {
+        return Err(not_wayland_session());
     }
 
     let (_session, response) = request_screen_capture_response().await?;
 
     if response.streams().is_empty() {
-        return Err(CaptureError::WaylandScreencastMissingStream);
+        return Err(missing_stream());
     }
 
     Ok(())
 }
 
 async fn open_screen_stream() -> CaptureResult<(ScreencastStream, std::os::fd::OwnedFd)> {
-    let proxy = Screencast::new().await?;
+    let proxy = Screencast::new().await.map_err(portal_error)?;
     let (session, response) = request_screen_capture_response_with_proxy(&proxy).await?;
 
     let stream = response
         .streams()
         .first()
         .cloned()
-        .ok_or(CaptureError::WaylandScreencastMissingStream)?;
+        .ok_or_else(missing_stream)?;
     let fd = proxy
         .open_pipe_wire_remote(&session, Default::default())
-        .await?;
+        .await
+        .map_err(portal_error)?;
 
     Ok((stream, fd))
 }
 
 async fn request_screen_capture_response() -> CaptureResult<(Session<Screencast>, Streams)> {
-    let proxy = Screencast::new().await?;
+    let proxy = Screencast::new().await.map_err(portal_error)?;
     request_screen_capture_response_with_proxy(&proxy).await
 }
 
 async fn request_screen_capture_response_with_proxy(
     proxy: &Screencast,
 ) -> CaptureResult<(Session<Screencast>, Streams)> {
-    let available_sources = proxy.available_source_types().await?;
+    let available_sources = proxy.available_source_types().await.map_err(portal_error)?;
     if !available_sources.contains(SourceType::Monitor) {
-        return Err(CaptureError::WaylandScreenCaptureUnavailable);
+        return Err(CaptureError::SourceUnavailable {
+            message: "Wayland screencast portal does not offer screen capture".to_owned(),
+        });
     }
 
     let token_path = screencast_token_path();
     let restore_token = read_screencast_token(&token_path)?;
-    let session = proxy.create_session(Default::default()).await?;
+    let session = proxy
+        .create_session(Default::default())
+        .await
+        .map_err(portal_error)?;
 
     proxy
         .select_sources(
@@ -113,12 +130,15 @@ async fn request_screen_capture_response_with_proxy(
                 .set_restore_token(restore_token.as_deref())
                 .set_persist_mode(PersistMode::ExplicitlyRevoked),
         )
-        .await?;
+        .await
+        .map_err(portal_error)?;
 
     let response = proxy
         .start(&session, None, Default::default())
-        .await?
-        .response()?;
+        .await
+        .map_err(portal_error)?
+        .response()
+        .map_err(portal_error)?;
 
     if let Some(token) = response.restore_token() {
         write_screencast_token(&token_path, token)?;
@@ -170,7 +190,7 @@ fn capture_pipewire_frame(node_id: u32, fd: std::os::fd::OwnedFd) -> CaptureResu
     };
 
     let _timeout = mainloop.loop_().add_timer(move |_| {
-        let _ = timeout_sender.send(Err(CaptureError::InvalidPipeWireFrame));
+        let _ = timeout_sender.send(Err(CaptureError::InvalidFrame));
         timeout_mainloop.quit();
     });
     _timeout
@@ -203,7 +223,7 @@ fn capture_pipewire_frame(node_id: u32, fd: std::os::fd::OwnedFd) -> CaptureResu
         .process(move |stream, state| {
             let result = match stream.dequeue_buffer() {
                 Some(mut buffer) => pipewire_buffer_to_image(&mut buffer, state.format),
-                None => Err(CaptureError::InvalidPipeWireFrame),
+                None => Err(CaptureError::InvalidFrame),
             };
             let _ = state.sender.send(result);
             process_mainloop.quit();
@@ -212,8 +232,7 @@ fn capture_pipewire_frame(node_id: u32, fd: std::os::fd::OwnedFd) -> CaptureResu
         .map_err(pipewire_error)?;
 
     let param_bytes = pipewire_video_format_param_bytes()?;
-    let param =
-        spa::pod::Pod::from_bytes(&param_bytes).ok_or(CaptureError::InvalidPipeWireFrame)?;
+    let param = spa::pod::Pod::from_bytes(&param_bytes).ok_or(CaptureError::InvalidFrame)?;
     let mut params = [param];
     stream
         .connect(
@@ -227,7 +246,7 @@ fn capture_pipewire_frame(node_id: u32, fd: std::os::fd::OwnedFd) -> CaptureResu
     mainloop.run();
     receiver
         .recv_timeout(Duration::from_secs(1))
-        .map_err(|_| CaptureError::InvalidPipeWireFrame)?
+        .map_err(|_| CaptureError::InvalidFrame)?
 }
 
 fn pipewire_video_format_param_bytes() -> CaptureResult<Vec<u8>> {
@@ -275,21 +294,19 @@ fn pipewire_buffer_to_image(
 ) -> CaptureResult<DynamicImage> {
     let datas = buffer.datas_mut();
     let Some(data) = datas.first_mut() else {
-        return Err(CaptureError::InvalidPipeWireFrame);
+        return Err(CaptureError::InvalidFrame);
     };
 
     let offset = data.chunk().offset() as usize;
     let size = data.chunk().size() as usize;
     let stride = data.chunk().stride();
     let Some(bytes) = data.data() else {
-        return Err(CaptureError::InvalidPipeWireFrame);
+        return Err(CaptureError::InvalidFrame);
     };
-    let frame_end = offset
-        .checked_add(size)
-        .ok_or(CaptureError::InvalidPipeWireFrame)?;
+    let frame_end = offset.checked_add(size).ok_or(CaptureError::InvalidFrame)?;
     let frame = bytes
         .get(offset..frame_end)
-        .ok_or(CaptureError::InvalidPipeWireFrame)?;
+        .ok_or(CaptureError::InvalidFrame)?;
 
     rgba_image_from_pipewire_frame(frame, stride, format).map(DynamicImage::ImageRgba8)
 }
@@ -303,7 +320,7 @@ fn rgba_image_from_pipewire_frame(
     let width = size.width;
     let height = size.height;
     if width == 0 || height == 0 || stride == 0 {
-        return Err(CaptureError::InvalidPipeWireFrame);
+        return Err(CaptureError::InvalidFrame);
     }
 
     let format = format.format();
@@ -317,14 +334,14 @@ fn rgba_image_from_pipewire_frame(
         | spa::param::video::VideoFormat::BGRA
         | spa::param::video::VideoFormat::BGRx => 4,
         _ => {
-            return Err(CaptureError::UnsupportedPipeWireFormat {
+            return Err(CaptureError::UnsupportedFrameFormat {
                 format: format!("{format:?}"),
             });
         }
     };
 
     if stride < width * bytes_per_pixel || frame.len() < stride * height {
-        return Err(CaptureError::InvalidPipeWireFrame);
+        return Err(CaptureError::InvalidFrame);
     }
 
     let mut rgba = Vec::with_capacity(width * height * 4);
@@ -355,7 +372,7 @@ fn rgba_image_from_pipewire_frame(
         }
     }
 
-    RgbaImage::from_raw(width as u32, height as u32, rgba).ok_or(CaptureError::InvalidPipeWireFrame)
+    RgbaImage::from_raw(width as u32, height as u32, rgba).ok_or(CaptureError::InvalidFrame)
 }
 
 fn screencast_token_path() -> PathBuf {
@@ -374,7 +391,7 @@ fn read_screencast_token(path: &PathBuf) -> CaptureResult<Option<String>> {
             Ok((!token.is_empty()).then_some(token))
         }
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(source) => Err(CaptureError::WaylandScreencastToken {
+        Err(source) => Err(CaptureError::RestoreToken {
             path: path.clone(),
             source,
         }),
@@ -383,13 +400,13 @@ fn read_screencast_token(path: &PathBuf) -> CaptureResult<Option<String>> {
 
 fn write_screencast_token(path: &PathBuf, token: &str) -> CaptureResult<()> {
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|source| CaptureError::WaylandScreencastToken {
+        fs::create_dir_all(parent).map_err(|source| CaptureError::RestoreToken {
             path: parent.to_path_buf(),
             source,
         })?;
     }
 
-    fs::write(path, token).map_err(|source| CaptureError::WaylandScreencastToken {
+    fs::write(path, token).map_err(|source| CaptureError::RestoreToken {
         path: path.clone(),
         source,
     })
@@ -399,7 +416,7 @@ fn remove_screencast_token(path: &PathBuf) -> CaptureResult<()> {
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(source) => Err(CaptureError::WaylandScreencastToken {
+        Err(source) => Err(CaptureError::RestoreToken {
             path: path.clone(),
             source,
         }),
@@ -407,7 +424,29 @@ fn remove_screencast_token(path: &PathBuf) -> CaptureResult<()> {
 }
 
 fn pipewire_error(error: impl std::fmt::Display) -> CaptureError {
-    CaptureError::PipeWire {
+    CaptureError::FrameCaptureFailed {
         message: error.to_string(),
+    }
+}
+
+fn portal_error(error: ashpd::Error) -> CaptureError {
+    CaptureError::RequestFailed {
+        message: format!("Wayland portal request failed: {error}"),
+    }
+}
+
+fn is_wayland_session() -> bool {
+    std::env::var_os("WAYLAND_DISPLAY").is_some()
+}
+
+fn not_wayland_session() -> CaptureError {
+    CaptureError::SessionUnavailable {
+        message: "Wayland capture requires WAYLAND_DISPLAY to be set".to_owned(),
+    }
+}
+
+fn missing_stream() -> CaptureError {
+    CaptureError::SourceUnavailable {
+        message: "Wayland screencast portal did not return a PipeWire stream".to_owned(),
     }
 }

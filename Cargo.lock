@@ -141,6 +141,7 @@ version = "0.1.0"
 dependencies = [
  "ashpd",
  "capture",
+ "capture_wayland",
  "futures-util",
  "global-hotkey",
  "iced",
@@ -652,10 +653,18 @@ dependencies = [
 name = "capture"
 version = "0.1.0"
 dependencies = [
+ "image 0.24.9",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "capture_wayland"
+version = "0.1.0"
+dependencies = [
  "ashpd",
+ "capture",
  "image 0.24.9",
  "pipewire",
- "thiserror 2.0.18",
  "tokio",
 ]
 

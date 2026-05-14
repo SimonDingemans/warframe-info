@@ -1,5 +1,3 @@
-pub mod platform;
-
 use std::{future::Future, path::PathBuf, pin::Pin};
 
 use image::DynamicImage;
@@ -11,10 +9,18 @@ pub type CaptureFuture<'a> = Pin<Box<dyn Future<Output = CaptureResult<Screensho
 pub type CapturePermissionFuture<'a> = Pin<Box<dyn Future<Output = CaptureResult<()>> + Send + 'a>>;
 
 pub trait ScreenCapture: Send + Sync {
+    fn capabilities(&self) -> CaptureCapabilities {
+        CaptureCapabilities::default()
+    }
+
     fn capture_screen(&self) -> CaptureFuture<'_>;
 
     fn request_permission(&self) -> CapturePermissionFuture<'_> {
         Box::pin(async { Ok(()) })
+    }
+
+    fn reset_permission_state(&self) -> CaptureResult<()> {
+        Ok(())
     }
 }
 
@@ -29,48 +35,54 @@ pub struct ScreenCaptureSource {
     pub size: (u32, u32),
 }
 
-pub async fn capture_screen() -> CaptureResult<Screenshot> {
-    platform::default_capture().capture_screen().await
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CaptureCapabilities {
+    pub permission_request: bool,
+    pub permission_reset: bool,
 }
 
-pub async fn request_screen_capture_permission() -> CaptureResult<()> {
-    platform::default_capture().request_permission().await
-}
+#[derive(Debug, Clone, Default)]
+pub struct UnsupportedCapture;
 
-pub fn reset_screen_capture_restore_token() -> CaptureResult<()> {
-    platform::reset_screen_capture_restore_token()
+impl ScreenCapture for UnsupportedCapture {
+    fn capture_screen(&self) -> CaptureFuture<'_> {
+        Box::pin(async { Err(CaptureError::UnsupportedBackend) })
+    }
 }
 
 #[derive(Debug, Error)]
 pub enum CaptureError {
-    #[error("screen capture is only implemented for Linux Wayland")]
-    UnsupportedPlatform,
+    #[error("screen capture is not supported by the selected backend")]
+    UnsupportedBackend,
 
-    #[error("Linux Wayland capture requires WAYLAND_DISPLAY to be set")]
-    NotWaylandSession,
+    #[error("{message}")]
+    SessionUnavailable { message: String },
 
-    #[error("portal request failed")]
-    Portal(#[from] ashpd::Error),
+    #[error("{message}")]
+    SourceUnavailable { message: String },
 
-    #[error("Wayland screencast portal does not offer screen capture")]
-    WaylandScreenCaptureUnavailable,
+    #[error("{message}")]
+    RequestFailed { message: String },
 
-    #[error("Wayland screencast portal did not return a PipeWire stream")]
-    WaylandScreencastMissingStream,
-
-    #[error("failed to access Wayland screencast restore token at {}", path.display())]
-    WaylandScreencastToken {
+    #[error("failed to access screen capture restore token at {}", path.display())]
+    RestoreToken {
         path: PathBuf,
         #[source]
         source: std::io::Error,
     },
 
-    #[error("PipeWire screencast failed: {message}")]
-    PipeWire { message: String },
+    #[error("{message}")]
+    FrameCaptureFailed { message: String },
 
-    #[error("PipeWire returned an unsupported video format: {format}")]
-    UnsupportedPipeWireFormat { format: String },
+    #[error("screen capture returned an unsupported video format: {format}")]
+    UnsupportedFrameFormat { format: String },
 
-    #[error("PipeWire returned an invalid video frame")]
-    InvalidPipeWireFrame,
+    #[error("screen capture returned an invalid video frame")]
+    InvalidFrame,
+
+    #[error("{backend} backend failed: {message}")]
+    Backend {
+        backend: &'static str,
+        message: String,
+    },
 }
