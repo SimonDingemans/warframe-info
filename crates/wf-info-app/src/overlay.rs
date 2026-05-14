@@ -167,7 +167,9 @@ fn reward_arg(item: &WarframeItem) -> String {
         "{}\t{}\t{}\t{}\t{}",
         item.drop_name,
         item.platinum_rounded(),
-        item.ducats,
+        item.ducats
+            .map(|ducats| ducats.to_string())
+            .unwrap_or_default(),
         item.volume,
         if item.vaulted { "1" } else { "0" }
     )

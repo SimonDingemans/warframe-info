@@ -1,4 +1,4 @@
-use wf_info_core::{scan_image, ScanKind, ScanOutput};
+use wf_info_core::{scan_image_with_item_database, ScanKind, ScanOutput};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ScanReport {
@@ -39,7 +39,10 @@ pub(crate) async fn run_scan(kind: ScanKind) -> Result<ScanReport, String> {
         .await
         .map_err(|error| error.to_string())?;
     let overlay_output_size = screenshot.source.map(|source| source.size);
-    let output = scan_image(kind, &screenshot.image).map_err(|error| error.to_string())?;
+    let mut market = crate::market::MarketData::load().await?;
+    let output = scan_image_with_item_database(kind, &screenshot.image, &market.database)
+        .map_err(|error| error.to_string())?;
+    let output = market.enrich_scan_output(output).await;
 
     Ok(ScanReport {
         output,

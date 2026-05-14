@@ -31,6 +31,16 @@ cargo run -p wf-info-app -- settings set-reward-hotkey "Ctrl+Shift+R"
 cargo run -p wf-info-app -- settings set-inventory-hotkey "Ctrl+Shift+I"
 ```
 
+Scans use the `wf-market` crate for live warframe.market data. The item index is
+cached in `${XDG_CACHE_HOME:-~/.cache}/wf-info/wf_market_cache.json`, and top
+sell prices are cached per item in `wf_market_price_cache.json`. Both caches are
+treated as fresh for 1 hour. Clear them from the app with `Clear Market Cache`,
+or from the command line:
+
+```sh
+cargo run -p wf-info-app -- cache clear
+```
+
 Running `wf-info-app` opens the initial `iced` settings UI. The UI can save hotkey settings and manually run reward or inventory scans through the current capture, crop, and OCR pipeline. The command-line settings commands are kept for scripting and quick checks.
 
 Settings are saved as TOML in the platform config directory by default:

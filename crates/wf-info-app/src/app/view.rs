@@ -105,6 +105,9 @@ impl SettingsApp {
         let pipeline_actions = row![
             reward_scan_button,
             inventory_scan_button,
+            button("Clear Market Cache")
+                .on_press(Message::InvalidateMarketCacheRequested)
+                .padding([8, 14]),
             button("Test Overlay")
                 .on_press(Message::TestOverlayRequested)
                 .padding([8, 14]),

@@ -1,13 +1,6 @@
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::collections::HashMap;
 
-use serde::{Deserialize, Deserializer};
-use thiserror::Error;
-
-pub type ItemDatabaseResult<T> = Result<T, ItemDatabaseError>;
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ItemDatabase {
@@ -16,106 +9,17 @@ pub struct ItemDatabase {
 }
 
 impl ItemDatabase {
-    pub fn from_default_cache_dir() -> ItemDatabaseResult<Self> {
-        Self::from_cache_dir(default_cache_dir())
-    }
-
-    pub fn from_cache_dir(cache_dir: impl AsRef<Path>) -> ItemDatabaseResult<Self> {
-        let cache_dir = cache_dir.as_ref();
-        let prices_path = cache_dir.join("prices.json");
-        let filtered_items_path = cache_dir.join("filtered_items.json");
-        let market_items_path = cache_dir.join("warframe_market_items.json");
-
-        if market_items_path.exists() {
-            Self::from_files_with_market_items(prices_path, filtered_items_path, market_items_path)
-        } else {
-            Self::from_files(prices_path, filtered_items_path)
-        }
-    }
-
-    pub fn from_files(
-        prices_path: impl AsRef<Path>,
-        filtered_items_path: impl AsRef<Path>,
-    ) -> ItemDatabaseResult<Self> {
-        let prices_path = prices_path.as_ref();
-        let filtered_items_path = filtered_items_path.as_ref();
-        let prices =
-            fs::read_to_string(prices_path).map_err(|source| ItemDatabaseError::ReadFile {
-                path: prices_path.to_path_buf(),
-                source,
-            })?;
-        let filtered_items = fs::read_to_string(filtered_items_path).map_err(|source| {
-            ItemDatabaseError::ReadFile {
-                path: filtered_items_path.to_path_buf(),
-                source,
-            }
-        })?;
-
-        Self::from_json(&prices, &filtered_items)
-    }
-
-    pub fn from_files_with_market_items(
-        prices_path: impl AsRef<Path>,
-        filtered_items_path: impl AsRef<Path>,
-        market_items_path: impl AsRef<Path>,
-    ) -> ItemDatabaseResult<Self> {
-        let prices_path = prices_path.as_ref();
-        let filtered_items_path = filtered_items_path.as_ref();
-        let market_items_path = market_items_path.as_ref();
-        let prices =
-            fs::read_to_string(prices_path).map_err(|source| ItemDatabaseError::ReadFile {
-                path: prices_path.to_path_buf(),
-                source,
-            })?;
-        let filtered_items = fs::read_to_string(filtered_items_path).map_err(|source| {
-            ItemDatabaseError::ReadFile {
-                path: filtered_items_path.to_path_buf(),
-                source,
-            }
-        })?;
-        let market_items = fs::read_to_string(market_items_path).map_err(|source| {
-            ItemDatabaseError::ReadFile {
-                path: market_items_path.to_path_buf(),
-                source,
-            }
-        })?;
-
-        Self::from_json_with_market_items(&prices, &filtered_items, &market_items)
-    }
-
-    pub fn from_json(prices: &str, filtered_items: &str) -> ItemDatabaseResult<Self> {
-        let price_table = load_prices(prices)?;
-        let filtered_items = load_filtered_items(filtered_items)?;
-        let mut items = process_items(
-            filtered_items.eqmt,
-            filtered_items.ignored_items,
-            &price_table,
-        );
-
-        apply_special_price_overrides(&mut items);
-
-        Ok(Self {
-            items,
-            market_items: Vec::new(),
-        })
-    }
-
-    pub fn from_json_with_market_items(
-        prices: &str,
-        filtered_items: &str,
-        market_items: &str,
-    ) -> ItemDatabaseResult<Self> {
-        let mut database = Self::from_json(prices, filtered_items)?;
-        database.market_items = load_market_items(market_items)?;
-        database.apply_market_item_slugs();
-
-        Ok(database)
-    }
-
     pub fn new(items: Vec<WarframeItem>) -> Self {
         Self {
             items,
             market_items: Vec::new(),
+        }
+    }
+
+    pub fn with_market_items(items: Vec<WarframeItem>, market_items: Vec<MarketItem>) -> Self {
+        Self {
+            items,
+            market_items,
         }
     }
 
@@ -187,30 +91,15 @@ impl ItemDatabase {
             .min_by_key(|(_, distance)| *distance)
             .map(|(item, _)| item)
     }
-
-    fn apply_market_item_slugs(&mut self) {
-        let slugs_by_name = self
-            .market_items
-            .iter()
-            .map(|item| (item.name.clone(), item.slug.clone()))
-            .collect::<HashMap<_, _>>();
-
-        for item in &mut self.items {
-            item.market_slug = slugs_by_name
-                .get(&item.drop_name)
-                .or_else(|| slugs_by_name.get(&item.name))
-                .cloned();
-        }
-    }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct WarframeItem {
     pub name: String,
     pub drop_name: String,
     pub market_slug: Option<String>,
     pub platinum: f32,
-    pub ducats: u32,
+    pub ducats: Option<u32>,
     pub volume: u32,
     pub vaulted: bool,
 }
@@ -221,272 +110,37 @@ impl WarframeItem {
     }
 
     pub fn summary(&self) -> String {
-        let mut details = vec![
-            format!("{}p", self.platinum_rounded()),
-            format!("{} ducats", self.ducats),
-            format!("{} sold", self.volume),
-        ];
+        let mut details = Vec::new();
+
+        if self.platinum_rounded() > 0 {
+            details.push(format!("{}p", self.platinum_rounded()));
+        }
+
+        if let Some(ducats) = self.ducats {
+            details.push(format!("{ducats} ducats"));
+        }
+
+        if self.volume > 0 {
+            details.push(format!("{} sold", self.volume));
+        }
 
         if self.vaulted {
             details.push("vaulted".to_owned());
         }
 
-        format!("{} ({})", self.drop_name, details.join(", "))
-    }
-
-    fn set_platinum(&mut self, platinum: f32) {
-        self.platinum = platinum;
+        if details.is_empty() {
+            self.drop_name.clone()
+        } else {
+            format!("{} ({})", self.drop_name, details.join(", "))
+        }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct MarketItem {
     pub slug: String,
     pub name: String,
     pub localized_names: HashMap<String, String>,
-}
-
-#[derive(Debug, Error)]
-pub enum ItemDatabaseError {
-    #[error("could not read item database file {}: {source}", path.display())]
-    ReadFile {
-        path: PathBuf,
-        source: std::io::Error,
-    },
-    #[error("could not parse prices payload: {0}")]
-    PricesJson(serde_json::Error),
-    #[error("could not parse filtered items payload: {0}")]
-    FilteredItemsJson(serde_json::Error),
-    #[error("could not parse warframe.market items payload: {0}")]
-    MarketItemsJson(serde_json::Error),
-    #[error("warframe.market items payload did not contain a usable English name for slug {0}")]
-    MissingMarketItemName(String),
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct PriceItem {
-    name: String,
-    #[serde(deserialize_with = "deserialize_f32_from_string_or_number")]
-    custom_avg: f32,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_u32_from_string_or_number"
-    )]
-    yesterday_vol: Option<u32>,
-    #[serde(
-        default,
-        deserialize_with = "deserialize_optional_u32_from_string_or_number"
-    )]
-    today_vol: Option<u32>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct DucatItem {
-    #[serde(default)]
-    ducats: u32,
-}
-
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
-enum EquipmentType {
-    Warframes,
-    Primary,
-    Secondary,
-    Melee,
-    Sentinels,
-    Archwing,
-    #[serde(rename = "Arch-Gun")]
-    ArchGun,
-    Skins,
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct EquipmentItem {
-    #[serde(rename = "type")]
-    item_type: EquipmentType,
-    #[serde(default)]
-    vaulted: bool,
-    #[serde(default)]
-    parts: HashMap<String, DucatItem>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct FilteredItems {
-    #[serde(default)]
-    eqmt: HashMap<String, EquipmentItem>,
-    #[serde(default)]
-    ignored_items: HashMap<String, DucatItem>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct MarketItemsPayload {
-    #[serde(default)]
-    data: Vec<MarketItemPayload>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct MarketItemPayload {
-    slug: String,
-    #[serde(default)]
-    i18n: HashMap<String, MarketItemTranslation>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-struct MarketItemTranslation {
-    name: String,
-}
-
-fn load_prices(prices: &str) -> ItemDatabaseResult<HashMap<String, PriceItem>> {
-    let prices: Vec<PriceItem> =
-        serde_json::from_str(prices).map_err(ItemDatabaseError::PricesJson)?;
-
-    Ok(prices
-        .into_iter()
-        .map(|price| (price.name.clone(), price))
-        .collect())
-}
-
-fn load_filtered_items(filtered_items: &str) -> ItemDatabaseResult<FilteredItems> {
-    serde_json::from_str(filtered_items).map_err(ItemDatabaseError::FilteredItemsJson)
-}
-
-fn load_market_items(market_items: &str) -> ItemDatabaseResult<Vec<MarketItem>> {
-    let payload: MarketItemsPayload =
-        serde_json::from_str(market_items).map_err(ItemDatabaseError::MarketItemsJson)?;
-
-    payload
-        .data
-        .into_iter()
-        .map(|item| {
-            let localized_names = item
-                .i18n
-                .into_iter()
-                .map(|(language, translation)| (language, translation.name))
-                .collect::<HashMap<_, _>>();
-            let name = localized_names
-                .get("en")
-                .or_else(|| localized_names.values().next())
-                .cloned()
-                .ok_or_else(|| ItemDatabaseError::MissingMarketItemName(item.slug.clone()))?;
-
-            Ok(MarketItem {
-                slug: item.slug,
-                name,
-                localized_names,
-            })
-        })
-        .collect()
-}
-
-fn process_items(
-    equipment: HashMap<String, EquipmentItem>,
-    ignored_items: HashMap<String, DucatItem>,
-    price_table: &HashMap<String, PriceItem>,
-) -> Vec<WarframeItem> {
-    equipment
-        .into_iter()
-        .flat_map(|(equipment_name, equipment_item)| {
-            let set_item = set_item(&equipment_name, &equipment_item, price_table);
-
-            equipment_item
-                .parts
-                .into_iter()
-                .filter_map(move |(name, ducat_item)| {
-                    equipment_part_item(
-                        name,
-                        ducat_item,
-                        equipment_item.item_type,
-                        equipment_item.vaulted,
-                        price_table,
-                    )
-                })
-                .chain(set_item)
-        })
-        .chain(ignored_items.into_iter().map(|(name, ducat_item)| {
-            let price = price_table.get(&name);
-
-            WarframeItem {
-                name: name.clone(),
-                drop_name: name,
-                market_slug: None,
-                platinum: price.map(|price| price.custom_avg).unwrap_or_default(),
-                ducats: ducat_item.ducats,
-                volume: price.map(total_recent_volume).unwrap_or_default(),
-                vaulted: false,
-            }
-        }))
-        .collect()
-}
-
-fn set_item(
-    equipment_name: &str,
-    equipment_item: &EquipmentItem,
-    price_table: &HashMap<String, PriceItem>,
-) -> Option<WarframeItem> {
-    let set_name = format!("{equipment_name} Set");
-    let price = price_table.get(&set_name)?;
-
-    Some(WarframeItem {
-        name: set_name.clone(),
-        drop_name: set_name,
-        market_slug: None,
-        platinum: price.custom_avg,
-        ducats: 0,
-        volume: total_recent_volume(price),
-        vaulted: equipment_item.vaulted,
-    })
-}
-
-fn equipment_part_item(
-    name: String,
-    ducat_item: DucatItem,
-    equipment_type: EquipmentType,
-    vaulted: bool,
-    price_table: &HashMap<String, PriceItem>,
-) -> Option<WarframeItem> {
-    let price = price_table
-        .get(&name)
-        .or_else(|| price_table.get(&format!("{name} Blueprint")))?;
-
-    Some(WarframeItem {
-        drop_name: drop_name_for_part(&name, equipment_type),
-        name,
-        market_slug: None,
-        platinum: price.custom_avg,
-        ducats: ducat_item.ducats,
-        volume: total_recent_volume(price),
-        vaulted,
-    })
-}
-
-fn drop_name_for_part(name: &str, equipment_type: EquipmentType) -> String {
-    match equipment_type {
-        EquipmentType::Warframes | EquipmentType::Archwing
-            if is_blueprint_drop_part(name) && !name.ends_with("Blueprint") =>
-        {
-            format!("{name} Blueprint")
-        }
-        _ => name.to_owned(),
-    }
-}
-
-fn is_blueprint_drop_part(name: &str) -> bool {
-    name.ends_with("Systems")
-        || name.ends_with("Neuroptics")
-        || name.ends_with("Chassis")
-        || name.ends_with("Harness")
-        || name.ends_with("Wings")
-}
-
-fn total_recent_volume(price: &PriceItem) -> u32 {
-    price.yesterday_vol.unwrap_or_default() + price.today_vol.unwrap_or_default()
-}
-
-fn apply_special_price_overrides(items: &mut [WarframeItem]) {
-    if let Some(item) = items.iter_mut().find(|item| item.name == "Forma Blueprint") {
-        item.set_platinum(35.0 / 3.0);
-    }
 }
 
 fn market_item_search_names(item: &MarketItem) -> Vec<&str> {
@@ -524,89 +178,15 @@ fn levenshtein_distance(left: &str, right: &str) -> usize {
     previous[right.chars().count()]
 }
 
-fn default_cache_dir() -> PathBuf {
-    std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("wf-info")
-}
-
-fn deserialize_f32_from_string_or_number<'de, D>(
-    deserializer: D,
-) -> std::result::Result<f32, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let value = serde_json::Value::deserialize(deserializer)?;
-
-    match value {
-        serde_json::Value::Number(number) => number
-            .as_f64()
-            .map(|number| number as f32)
-            .ok_or_else(|| serde::de::Error::custom("expected finite number")),
-        serde_json::Value::String(value) => value.parse().map_err(serde::de::Error::custom),
-        _ => Err(serde::de::Error::custom("expected number or string")),
-    }
-}
-
-fn deserialize_optional_u32_from_string_or_number<'de, D>(
-    deserializer: D,
-) -> std::result::Result<Option<u32>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
-
-    match value {
-        None | Some(serde_json::Value::Null) => Ok(None),
-        Some(serde_json::Value::Number(number)) => number
-            .as_u64()
-            .and_then(|number| number.try_into().ok())
-            .map(Some)
-            .ok_or_else(|| serde::de::Error::custom("expected unsigned integer")),
-        Some(serde_json::Value::String(value)) => {
-            value.parse().map(Some).map_err(serde::de::Error::custom)
-        }
-        Some(_) => Err(serde::de::Error::custom("expected number, string, or null")),
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{levenshtein_distance, ItemDatabase};
+    use std::collections::HashMap;
 
-    #[test]
-    fn database_loads_equipment_parts_sets_and_ignored_items() {
-        let database =
-            ItemDatabase::from_json(prices_json(), filtered_items_json()).expect("database");
-
-        let ash_systems = database
-            .find_item("Ash Prime Systems Blueprint", None)
-            .expect("warframe systems part");
-        assert_eq!(ash_systems.name, "Ash Prime Systems");
-        assert_eq!(ash_systems.drop_name, "Ash Prime Systems Blueprint");
-        assert_eq!(ash_systems.platinum, 22.0);
-        assert_eq!(ash_systems.ducats, 45);
-        assert_eq!(ash_systems.volume, 7);
-        assert!(ash_systems.vaulted);
-
-        let set = database.find_item("Ash Prime Set", None).expect("set item");
-        assert_eq!(set.platinum, 80.0);
-        assert_eq!(set.volume, 15);
-
-        let forma = database
-            .find_item("Forma Blueprint", None)
-            .expect("ignored item");
-        assert_eq!(forma.platinum, 35.0 / 3.0);
-        assert_eq!(forma.ducats, 0);
-        assert!(!forma.vaulted);
-    }
+    use super::{levenshtein_distance, ItemDatabase, MarketItem, WarframeItem};
 
     #[test]
     fn database_fuzzy_matches_ocr_text_without_matching_sets_by_default() {
-        let database =
-            ItemDatabase::from_json(prices_json(), filtered_items_json()).expect("database");
+        let database = test_database();
 
         let item = database
             .find_item("ash prime systerns blueprint", None)
@@ -623,51 +203,20 @@ mod tests {
 
     #[test]
     fn database_returns_warframe_items_for_ocr_text() {
-        let database =
-            ItemDatabase::from_json(prices_json(), filtered_items_json()).expect("database");
-
+        let database = test_database();
         let items = database.find_items(["Ash Prime Systerns Blueprint", "unknown"].into_iter());
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].drop_name, "Ash Prime Systems Blueprint");
         assert_eq!(
             items[0].summary(),
-            "Ash Prime Systems Blueprint (22p, 45 ducats, 7 sold, vaulted)"
+            "Ash Prime Systems Blueprint (22p, 65 ducats, 7 sold, vaulted)"
         );
-    }
-
-    #[test]
-    fn database_loads_market_item_names_slugs_and_translations() {
-        let database = ItemDatabase::from_json_with_market_items(
-            prices_json(),
-            filtered_items_json(),
-            market_items_json(),
-        )
-        .expect("database");
-
-        assert_eq!(database.market_items().len(), 2);
-        let ash_systems = database
-            .find_item("Ash Prime Systems Blueprint", None)
-            .expect("warframe systems part");
-        assert_eq!(
-            ash_systems.market_slug.as_deref(),
-            Some("ash_prime_systems_blueprint")
-        );
-
-        let market_item = database
-            .find_market_item("Plan de Systemes d'Ash Prime")
-            .expect("localized market item");
-        assert_eq!(market_item.slug, "ash_prime_systems_blueprint");
     }
 
     #[test]
     fn database_fuzzy_matches_market_item_names_and_translations() {
-        let database = ItemDatabase::from_json_with_market_items(
-            prices_json(),
-            filtered_items_json(),
-            market_items_json(),
-        )
-        .expect("database");
+        let database = test_database();
 
         let market_item = database
             .find_market_item_fuzzy("Plan de Systemes d Ash Prime", None)
@@ -677,74 +226,66 @@ mod tests {
     }
 
     #[test]
+    fn database_matches_market_item_names_and_translations_exactly() {
+        let database = test_database();
+
+        let market_item = database
+            .find_market_item("Plan de Systemes d'Ash Prime")
+            .expect("localized market item");
+
+        assert_eq!(market_item.slug, "ash_prime_systems_blueprint");
+    }
+
+    #[test]
+    fn summary_omits_missing_or_zero_details() {
+        let item = WarframeItem {
+            name: "Arcane Concentration".to_owned(),
+            drop_name: "Arcane Concentration".to_owned(),
+            market_slug: Some("arcane_concentration".to_owned()),
+            platinum: 0.0,
+            ducats: None,
+            volume: 0,
+            vaulted: false,
+        };
+
+        assert_eq!(item.summary(), "Arcane Concentration");
+    }
+
+    #[test]
     fn levenshtein_distance_handles_insertions_deletions_and_substitutions() {
         assert_eq!(levenshtein_distance("kitten", "sitting"), 3);
     }
 
-    fn prices_json() -> &'static str {
-        r#"[
-            {
-                "name": "Ash Prime Set",
-                "custom_avg": "80.0",
-                "yesterday_vol": "10",
-                "today_vol": "5"
-            },
-            {
-                "name": "Ash Prime Systems Blueprint",
-                "custom_avg": "22.0",
-                "yesterday_vol": "3",
-                "today_vol": "4"
-            },
-            {
-                "name": "Ash Prime Neuroptics Blueprint",
-                "custom_avg": 18.0,
-                "yesterday_vol": 1,
-                "today_vol": 2
-            },
-            {
-                "name": "Forma Blueprint",
-                "custom_avg": "9.0",
-                "yesterday_vol": null,
-                "today_vol": "12"
-            }
-        ]"#
-    }
-
-    fn filtered_items_json() -> &'static str {
-        r#"{
-            "eqmt": {
-                "Ash Prime": {
-                    "type": "Warframes",
-                    "vaulted": true,
-                    "parts": {
-                        "Ash Prime Systems": { "ducats": 45 },
-                        "Ash Prime Neuroptics": { "ducats": 25 }
-                    }
-                }
-            },
-            "ignored_items": {
-                "Forma Blueprint": { "ducats": 0 }
-            }
-        }"#
-    }
-
-    fn market_items_json() -> &'static str {
-        r#"{
-            "data": [
-                {
-                    "slug": "ash_prime_systems_blueprint",
-                    "i18n": {
-                        "en": { "name": "Ash Prime Systems Blueprint" },
-                        "fr": { "name": "Plan de Systemes d'Ash Prime" }
-                    }
+    fn test_database() -> ItemDatabase {
+        ItemDatabase::with_market_items(
+            vec![
+                WarframeItem {
+                    name: "Ash Prime Systems".to_owned(),
+                    drop_name: "Ash Prime Systems Blueprint".to_owned(),
+                    market_slug: Some("ash_prime_systems_blueprint".to_owned()),
+                    platinum: 22.0,
+                    ducats: Some(65),
+                    volume: 7,
+                    vaulted: true,
                 },
-                {
-                    "slug": "ash_prime_set",
-                    "i18n": {
-                        "en": { "name": "Ash Prime Set" }
-                    }
-                }
-            ]
-        }"#
+                WarframeItem {
+                    name: "Ash Prime Set".to_owned(),
+                    drop_name: "Ash Prime Set".to_owned(),
+                    market_slug: Some("ash_prime_set".to_owned()),
+                    platinum: 80.0,
+                    ducats: None,
+                    volume: 15,
+                    vaulted: true,
+                },
+            ],
+            vec![MarketItem {
+                slug: "ash_prime_systems_blueprint".to_owned(),
+                name: "Ash Prime Systems Blueprint".to_owned(),
+                localized_names: HashMap::from([
+                    ("en".to_owned(), "Ash Prime Systems Blueprint".to_owned()),
+                    ("fr".to_owned(), "Plan de Systemes d'Ash Prime".to_owned()),
+                ]),
+            }],
+        )
     }
 }

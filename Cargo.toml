@@ -34,3 +34,4 @@ tokio = { version = "1.52.3", features = ["macros", "rt", "sync", "time"] }
 toml = "1.1.2"
 wayland-client = "0.31.14"
 wayland-protocols = "0.32.12"
+wf-market = "0.3.3"

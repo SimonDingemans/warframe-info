@@ -106,6 +106,14 @@ impl SettingsApp {
                     }
                 }
             }
+            Message::InvalidateMarketCacheRequested => match crate::market::invalidate_caches() {
+                Ok(()) => {
+                    self.status = "Warframe Market cache cleared".to_owned();
+                }
+                Err(error) => {
+                    self.status = format!("Could not clear Warframe Market cache: {error}");
+                }
+            },
             Message::TestOverlayRequested => match spawn_test_reward_overlay() {
                 Ok(()) => {
                     self.status = "Test overlay spawned".to_owned();

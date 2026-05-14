@@ -16,6 +16,7 @@ pub(super) enum Message {
     Hotkey(HotkeyEvent),
     ScreenCapturePermissionFinished(Result<(), String>),
     ResetScreenCaptureTokenRequested,
+    InvalidateMarketCacheRequested,
     TestOverlayRequested,
     RewardScanRequested,
     InventoryScanRequested,

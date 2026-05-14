@@ -1,5 +1,6 @@
 mod app;
 mod hotkeys;
+mod market;
 mod overlay;
 mod scan;
 
@@ -18,6 +19,10 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
+    if let Some(result) = market::run_cache_command_from_args(std::env::args_os().skip(1)) {
+        return result;
+    }
+
     if let Some(result) = overlay::run_test_reward_overlay_from_args(std::env::args_os().skip(1)) {
         return result;
     }

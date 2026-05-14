@@ -8,7 +8,7 @@ use wf_info_ocr::{
     text::WarframeTextNormalizer,
 };
 
-use crate::item_database::{ItemDatabase, ItemDatabaseError, WarframeItem};
+use crate::item_database::{ItemDatabase, WarframeItem};
 
 pub type ScanResult<T> = Result<T, ScanError>;
 
@@ -36,11 +36,6 @@ pub struct ScanOutput {
     pub cropped_height: u32,
     pub text_block_count: usize,
     pub items: Vec<WarframeItem>,
-}
-
-pub fn scan_image(kind: ScanKind, screenshot: &DynamicImage) -> ScanResult<ScanOutput> {
-    let database = ItemDatabase::from_default_cache_dir()?;
-    scan_image_with_item_database(kind, screenshot, &database)
 }
 
 pub fn scan_image_with_item_database(
@@ -110,7 +105,4 @@ pub enum ScanError {
 
     #[error("OCR pipeline failed: {message}")]
     Ocr { message: String },
-
-    #[error("item database failed: {0}")]
-    ItemDatabase(#[from] ItemDatabaseError),
 }
