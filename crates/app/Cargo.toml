@@ -11,6 +11,7 @@ tokio.workspace = true
 capture = { path = "../capture" }
 hotkeys = { path = "../hotkeys" }
 info_core = { path = "../info_core" }
+ocr = { path = "../ocr" }
 overlay = { path = "../overlay" }
 platform_capabilities = { path = "../platform_capabilities" }
 wf-market.workspace = true

@@ -10,18 +10,10 @@ use thiserror::Error;
 
 pub type SettingsResult<T> = Result<T, SettingsError>;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AppSettings {
     pub hotkeys: HotkeySettings,
-}
-
-impl Default for AppSettings {
-    fn default() -> Self {
-        Self {
-            hotkeys: HotkeySettings::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

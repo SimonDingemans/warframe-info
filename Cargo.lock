@@ -143,6 +143,7 @@ dependencies = [
  "hotkeys",
  "iced",
  "info_core",
+ "ocr",
  "overlay",
  "platform_capabilities",
  "serde",

@@ -1,6 +1,5 @@
 pub mod hotkeys;
 pub mod item_database;
-pub mod platform;
 pub mod scan;
 pub mod settings;
 

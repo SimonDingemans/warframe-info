@@ -3,13 +3,7 @@ pub mod global_shortcuts {
     use info_core::AppSettings;
 
     pub fn backend() -> HotkeyBackend {
-        let integration = system_integration();
-
-        if integration.capabilities().system_configuration {
-            HotkeyBackend::Integrated(integration)
-        } else {
-            HotkeyBackend::Native
-        }
+        super::imp::hotkey_backend()
     }
 
     pub fn has_system_configuration() -> bool {
@@ -49,29 +43,70 @@ pub mod reward_overlay {
 
 #[cfg(target_os = "linux")]
 mod imp {
+    pub(super) fn hotkey_backend() -> hotkeys::HotkeyBackend {
+        if is_wayland_session() {
+            hotkeys::HotkeyBackend::Integrated(hotkeys_wayland::shortcut_integration())
+        } else {
+            hotkeys::HotkeyBackend::Integrated(hotkeys::unsupported::shortcut_integration())
+        }
+    }
+
     pub(super) fn system_shortcut_integration() -> hotkeys::ShortcutIntegrationHandle {
-        hotkeys_wayland::shortcut_integration()
+        if is_wayland_session() {
+            hotkeys_wayland::shortcut_integration()
+        } else {
+            hotkeys::unsupported::shortcut_integration()
+        }
     }
 
     pub(super) fn screen_capture_backend() -> capture::DynScreenCapture {
-        Box::new(capture_wayland::WaylandCapture::new())
+        if is_wayland_session() {
+            Box::new(capture_wayland::WaylandCapture::new())
+        } else {
+            Box::new(capture::UnsupportedCapture)
+        }
     }
 
     pub(super) async fn display_outputs() -> Result<Vec<overlay::DisplayOutput>, String> {
-        overlay_wayland::display_outputs().await
+        if is_wayland_session() {
+            overlay_wayland::display_outputs().await
+        } else {
+            Err(unsupported_native_linux_message())
+        }
     }
 
     pub(super) fn reset_display_restore_token() -> Result<(), String> {
-        overlay_wayland::reset_display_restore_token()
+        if is_wayland_session() {
+            overlay_wayland::reset_display_restore_token()
+        } else {
+            Ok(())
+        }
     }
 
     pub(super) fn run_reward_overlay(overlay: overlay::RewardOverlay) -> Result<(), String> {
-        overlay_wayland::run(overlay).map_err(|error| error.to_string())
+        if is_wayland_session() {
+            overlay_wayland::run(overlay).map_err(|error| error.to_string())
+        } else {
+            Err(unsupported_native_linux_message())
+        }
+    }
+
+    fn is_wayland_session() -> bool {
+        std::env::var_os("WAYLAND_DISPLAY").is_some()
+    }
+
+    fn unsupported_native_linux_message() -> String {
+        "Wayland is required; X11/native Linux capture and overlays are not supported yet"
+            .to_owned()
     }
 }
 
 #[cfg(not(target_os = "linux"))]
 mod imp {
+    pub(super) fn hotkey_backend() -> hotkeys::HotkeyBackend {
+        hotkeys::HotkeyBackend::Native
+    }
+
     pub(super) fn system_shortcut_integration() -> hotkeys::ShortcutIntegrationHandle {
         hotkeys::unsupported::shortcut_integration()
     }

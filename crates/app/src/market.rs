@@ -23,7 +23,7 @@ pub(crate) struct MarketData {
 
 impl MarketData {
     pub(crate) async fn load() -> Result<Self, String> {
-        load_live_market().await
+        load_market_index().await
     }
 
     pub(crate) async fn enrich_scan_output(&mut self, mut output: ScanOutput) -> ScanOutput {
@@ -102,39 +102,70 @@ pub(crate) fn invalidate_caches() -> Result<(), String> {
     }
 }
 
-async fn load_live_market() -> Result<MarketData, String> {
+async fn load_market_index() -> Result<MarketData, String> {
     let cache_dir = default_cache_dir();
     let cache_path = cache_dir.join(ITEM_CACHE_FILE);
     let price_cache_path = cache_dir.join(PRICE_CACHE_FILE);
-    let mut cache = load_cache(&cache_path)?;
+    let (serializable_cache, cache_load_error) = match load_serializable_cache(&cache_path) {
+        Ok(cache) => (cache, None),
+        Err(error) => (SerializableCache::default(), Some(error)),
+    };
+    let cached_items = cached_items(&serializable_cache);
+    let mut cache = serializable_cache.into_api_cache();
     cache.invalidate_items_if_older_than(CACHE_TTL);
 
-    let client = Client::builder()
-        .build_with_cache(&mut cache)
-        .await
-        .map_err(|error| error.to_string())?;
+    match Client::builder().build_with_cache(&mut cache).await {
+        Ok(client) => {
+            let _ = save_cache(&cache_path, &cache);
 
-    save_cache(&cache_path, &cache)?;
+            let database = item_database_from_market_items(client.items().as_slice());
+            let price_cache = load_price_cache(&price_cache_path).unwrap_or_default();
 
-    let database = item_database_from_market_items(client.items().as_slice());
-    let price_cache = load_price_cache(&price_cache_path)?;
+            Ok(MarketData {
+                database,
+                client: Some(client),
+                price_cache,
+                price_cache_path,
+            })
+        }
+        Err(error) => {
+            let Some(items) = cached_items else {
+                let cache_context = cache_load_error
+                    .map(|error| format!("; cached item index was unavailable: {error}"))
+                    .unwrap_or_default();
 
-    Ok(MarketData {
-        database,
-        client: Some(client),
-        price_cache,
-        price_cache_path,
-    })
+                return Err(format!(
+                    "could not load Warframe Market item index: {error}{cache_context}"
+                ));
+            };
+
+            Ok(MarketData {
+                database: item_database_from_market_items(&items),
+                client: None,
+                price_cache: PriceCache::default(),
+                price_cache_path,
+            })
+        }
+    }
 }
 
-fn load_cache(path: &Path) -> Result<ApiCache, String> {
+fn load_serializable_cache(path: &Path) -> Result<SerializableCache, String> {
     match fs::read_to_string(path) {
         Ok(json) => serde_json::from_str::<SerializableCache>(&json)
-            .map(SerializableCache::into_api_cache)
             .map_err(|error| format!("could not parse {}: {error}", path.display())),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(ApiCache::new()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            Ok(SerializableCache::default())
+        }
         Err(error) => Err(format!("could not read {}: {error}", path.display())),
     }
+}
+
+fn cached_items(cache: &SerializableCache) -> Option<Vec<Item>> {
+    cache
+        .items
+        .as_ref()
+        .map(|items| items.data.clone())
+        .filter(|items| !items.is_empty())
 }
 
 fn save_cache(path: &Path, cache: &ApiCache) -> Result<(), String> {

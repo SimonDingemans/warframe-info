@@ -46,7 +46,8 @@ pub(crate) async fn run_scan(kind: ScanKind) -> Result<ScanReport, String> {
         .map_err(|error| error.to_string())?;
     let overlay_output_size = screenshot.source.map(|source| source.size);
     let mut market = crate::market::MarketData::load().await?;
-    let output = scan_image_with_item_database(kind, &screenshot.image, &market.database)
+    let mut ocr = ocr::load_ocr_engine().map_err(|error| error.to_string())?;
+    let output = scan_image_with_item_database(kind, &screenshot.image, &market.database, &mut ocr)
         .map_err(|error| error.to_string())?;
     let output = market.enrich_scan_output(output).await;
 

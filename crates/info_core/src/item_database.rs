@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn database_returns_warframe_items_for_ocr_text() {
         let database = test_database();
-        let items = database.find_items(["Ash Prime Systerns Blueprint", "unknown"].into_iter());
+        let items = database.find_items(["Ash Prime Systerns Blueprint", "unknown"]);
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].drop_name, "Ash Prime Systems Blueprint");

@@ -2,8 +2,7 @@ use crop::{InventoryCrop, RewardScreenCrop, ScreenCrop};
 use image::DynamicImage;
 use ocr::{
     layouts::{InventoryGridLayout, RewardScreenLayout},
-    load_ocr_engine,
-    pipeline::ItemPipeline,
+    pipeline::{ItemPipeline, TextOcrEngine},
     text::WarframeTextNormalizer,
 };
 use thiserror::Error;
@@ -42,21 +41,23 @@ pub fn scan_image_with_item_database(
     kind: ScanKind,
     screenshot: &DynamicImage,
     database: &ItemDatabase,
+    ocr: &mut impl TextOcrEngine,
 ) -> ScanResult<ScanOutput> {
     match kind {
-        ScanKind::Reward => scan_reward_image(screenshot, database),
-        ScanKind::Inventory => scan_inventory_image(screenshot, database),
+        ScanKind::Reward => scan_reward_image(screenshot, database, ocr),
+        ScanKind::Inventory => scan_inventory_image(screenshot, database, ocr),
     }
 }
 
-fn scan_reward_image(screenshot: &DynamicImage, database: &ItemDatabase) -> ScanResult<ScanOutput> {
+fn scan_reward_image(
+    screenshot: &DynamicImage,
+    database: &ItemDatabase,
+    ocr: &mut impl TextOcrEngine,
+) -> ScanResult<ScanOutput> {
     let cropped = RewardScreenCrop::default().crop_image(screenshot)?;
     let pipeline = ItemPipeline::new(WarframeTextNormalizer).with_min_text_score(0.75);
-    let mut ocr = load_ocr_engine().map_err(|source| ScanError::Ocr {
-        message: source.to_string(),
-    })?;
     let output = pipeline
-        .run(&mut ocr, &cropped.image, &RewardScreenLayout::default())
+        .run(ocr, &cropped.image, &RewardScreenLayout::default())
         .map_err(|source| ScanError::Ocr {
             message: source.to_string(),
         })?;
@@ -75,14 +76,12 @@ fn scan_reward_image(screenshot: &DynamicImage, database: &ItemDatabase) -> Scan
 fn scan_inventory_image(
     screenshot: &DynamicImage,
     database: &ItemDatabase,
+    ocr: &mut impl TextOcrEngine,
 ) -> ScanResult<ScanOutput> {
     let cropped = InventoryCrop::default().crop_image(screenshot)?;
     let pipeline = ItemPipeline::new(WarframeTextNormalizer).with_min_text_score(0.75);
-    let mut ocr = load_ocr_engine().map_err(|source| ScanError::Ocr {
-        message: source.to_string(),
-    })?;
     let output = pipeline
-        .run(&mut ocr, &cropped.image, &InventoryGridLayout::new(6))
+        .run(ocr, &cropped.image, &InventoryGridLayout::new(6))
         .map_err(|source| ScanError::Ocr {
             message: source.to_string(),
         })?;

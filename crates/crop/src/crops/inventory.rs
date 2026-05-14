@@ -8,7 +8,7 @@ pub struct InventoryCrop {
 impl Default for InventoryCrop {
     fn default() -> Self {
         Self {
-            crop: RatioRect::new(0.037715517, 0.20561941, 0.65086207, 0.7943806),
+            crop: RatioRect::new(0.037715517, 0.20561941, 0.6508621, 0.7943806),
         }
     }
 }
