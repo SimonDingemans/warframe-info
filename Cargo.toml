@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/wf-info-capture",
     "crates/wf-info-ocr",
 ]
 
@@ -9,9 +10,11 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
+ashpd = { version = "0.13.10", default-features = false, features = ["screenshot", "tokio"] }
 image = "0.24"
 imageproc = "0.23"
 ndarray = "0.15"
 ort = "2.0.0-rc.9"
 regex = "1.10"
 rstest = "0.26.1"
+thiserror = "2.0"
