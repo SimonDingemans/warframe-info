@@ -1,0 +1,15 @@
+[package]
+name = "wf-info-app"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+global-hotkey.workspace = true
+iced.workspace = true
+tokio.workspace = true
+wf-info-capture = { path = "../wf-info-capture" }
+wf-info-core = { path = "../wf-info-core" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd.workspace = true
+futures-util.workspace = true
