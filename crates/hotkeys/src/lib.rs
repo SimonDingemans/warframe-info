@@ -25,6 +25,10 @@ pub use info_core::HotkeyEvent;
 pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
 
 pub trait ShortcutIntegration: Sync {
+    fn capabilities(&self) -> ShortcutIntegrationCapabilities {
+        ShortcutIntegrationCapabilities::default()
+    }
+
     fn registration_status(&self, settings: &AppSettings) -> String;
 
     fn configure_shortcuts(&self, settings: AppSettings) -> BoxFuture<Result<String, String>>;
@@ -42,9 +46,18 @@ pub struct ShortcutIntegrationHandle {
     integration: &'static dyn ShortcutIntegration,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ShortcutIntegrationCapabilities {
+    pub system_configuration: bool,
+}
+
 impl ShortcutIntegrationHandle {
     pub const fn new(id: &'static str, integration: &'static dyn ShortcutIntegration) -> Self {
         Self { id, integration }
+    }
+
+    pub fn capabilities(&self) -> ShortcutIntegrationCapabilities {
+        self.integration.capabilities()
     }
 
     pub fn registration_status(&self, settings: &AppSettings) -> String {

@@ -10,7 +10,9 @@ use ashpd::desktop::{
 use ashpd::WindowIdentifier;
 use futures::{channel::mpsc, SinkExt};
 use futures_util::StreamExt;
-use hotkeys::{BoxFuture, ShortcutIntegration, ShortcutIntegrationHandle};
+use hotkeys::{
+    BoxFuture, ShortcutIntegration, ShortcutIntegrationCapabilities, ShortcutIntegrationHandle,
+};
 use info_core::{AppSettings, HotkeyEvent, ScanKind};
 
 static SHORTCUT_INTEGRATION: WaylandShortcutIntegration = WaylandShortcutIntegration;
@@ -22,6 +24,12 @@ pub fn shortcut_integration() -> ShortcutIntegrationHandle {
 struct WaylandShortcutIntegration;
 
 impl ShortcutIntegration for WaylandShortcutIntegration {
+    fn capabilities(&self) -> ShortcutIntegrationCapabilities {
+        ShortcutIntegrationCapabilities {
+            system_configuration: is_wayland_session(),
+        }
+    }
+
     fn registration_status(&self, settings: &AppSettings) -> String {
         registration_status(settings)
     }
@@ -41,6 +49,10 @@ impl ShortcutIntegration for WaylandShortcutIntegration {
 
 pub fn registration_status(_settings: &AppSettings) -> String {
     "Wayland global shortcuts requested through the desktop portal".to_owned()
+}
+
+fn is_wayland_session() -> bool {
+    env::var_os("WAYLAND_DISPLAY").is_some()
 }
 
 pub async fn configure_shortcuts(settings: AppSettings) -> Result<String, String> {

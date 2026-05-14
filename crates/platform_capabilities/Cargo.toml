@@ -1,0 +1,15 @@
+[package]
+name = "platform_capabilities"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+capture = { path = "../capture" }
+hotkeys = { path = "../hotkeys" }
+info_core = { path = "../info_core" }
+overlay = { path = "../overlay" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+capture_wayland = { path = "../capture_wayland" }
+hotkeys_wayland = { path = "../hotkeys_wayland" }
+overlay_wayland = { path = "../overlay_wayland" }

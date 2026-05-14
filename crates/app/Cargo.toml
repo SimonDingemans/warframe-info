@@ -12,9 +12,5 @@ capture = { path = "../capture" }
 hotkeys = { path = "../hotkeys" }
 info_core = { path = "../info_core" }
 overlay = { path = "../overlay" }
+platform_capabilities = { path = "../platform_capabilities" }
 wf-market.workspace = true
-
-[target.'cfg(target_os = "linux")'.dependencies]
-capture_wayland = { path = "../capture_wayland" }
-hotkeys_wayland = { path = "../hotkeys_wayland" }
-overlay_wayland = { path = "../overlay_wayland" }

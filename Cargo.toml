@@ -11,6 +11,7 @@ members = [
     "crates/overlay",
     "crates/overlay_wayland",
     "crates/ocr",
+    "crates/platform_capabilities",
 ]
 
 [workspace.package]

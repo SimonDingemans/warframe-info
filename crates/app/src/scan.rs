@@ -35,14 +35,8 @@ pub(crate) fn reset_screen_capture_restore_token() -> Result<(), String> {
     }
 }
 
-#[cfg(target_os = "linux")]
 fn reset_overlay_display_restore_token() -> Result<(), String> {
-    overlay_wayland::reset_display_restore_token()
-}
-
-#[cfg(not(target_os = "linux"))]
-fn reset_overlay_display_restore_token() -> Result<(), String> {
-    Ok(())
+    platform_capabilities::reward_overlay::reset_display_restore_token()
 }
 
 pub(crate) async fn run_scan(kind: ScanKind) -> Result<ScanReport, String> {
@@ -63,13 +57,5 @@ pub(crate) async fn run_scan(kind: ScanKind) -> Result<ScanReport, String> {
 }
 
 fn screen_capture() -> Box<dyn capture::ScreenCapture> {
-    #[cfg(target_os = "linux")]
-    {
-        Box::new(capture_wayland::WaylandCapture::new())
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        Box::new(capture::UnsupportedCapture)
-    }
+    platform_capabilities::screen_capture::backend()
 }

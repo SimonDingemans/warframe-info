@@ -160,24 +160,12 @@ fn run_reward_overlay(args: impl IntoIterator<Item = OsString>) -> Result<(), St
     })
 }
 
-#[cfg(target_os = "linux")]
 async fn display_outputs() -> Result<Vec<overlay::DisplayOutput>, String> {
-    overlay_wayland::display_outputs().await
+    platform_capabilities::reward_overlay::display_outputs().await
 }
 
-#[cfg(not(target_os = "linux"))]
-async fn display_outputs() -> Result<Vec<overlay::DisplayOutput>, String> {
-    Err("Wayland reward overlays are not supported on this platform".to_owned())
-}
-
-#[cfg(target_os = "linux")]
 fn run_overlay(reward_overlay: RewardOverlay) -> Result<(), String> {
-    overlay_wayland::run(reward_overlay).map_err(|error| error.to_string())
-}
-
-#[cfg(not(target_os = "linux"))]
-fn run_overlay(_reward_overlay: RewardOverlay) -> Result<(), String> {
-    Err("Wayland reward overlays are not supported on this platform".to_owned())
+    platform_capabilities::reward_overlay::run(reward_overlay)
 }
 
 fn reward_arg(item: &WarframeItem) -> String {

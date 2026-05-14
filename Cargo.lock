@@ -140,13 +140,11 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "capture",
- "capture_wayland",
  "hotkeys",
- "hotkeys_wayland",
  "iced",
  "info_core",
  "overlay",
- "overlay_wayland",
+ "platform_capabilities",
  "serde",
  "serde_json",
  "tokio",
@@ -3934,6 +3932,19 @@ name = "plain"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4596b6d070b27117e987119b4dac604f3c58cfb0b191112e24771b2faeac1a6"
+
+[[package]]
+name = "platform_capabilities"
+version = "0.1.0"
+dependencies = [
+ "capture",
+ "capture_wayland",
+ "hotkeys",
+ "hotkeys_wayland",
+ "info_core",
+ "overlay",
+ "overlay_wayland",
+]
 
 [[package]]
 name = "png"
