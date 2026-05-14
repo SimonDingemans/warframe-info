@@ -1,8 +1,9 @@
 mod app;
 mod hotkeys;
+mod overlay;
 mod scan;
 
-use std::{process::ExitCode};
+use std::process::ExitCode;
 
 use wf_info_core::SettingsPaths;
 
@@ -17,6 +18,10 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
+    if let Some(result) = overlay::run_reward_overlay_from_args(std::env::args_os().skip(1)) {
+        return result;
+    }
+
     let settings_path = SettingsPaths::detect().settings_file;
 
     app::run(settings_path)

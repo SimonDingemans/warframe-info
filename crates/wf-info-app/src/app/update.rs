@@ -3,6 +3,7 @@ use wf_info_core::{AppSettings, ScanKind};
 
 use crate::{
     hotkeys::{self, HotkeyEvent},
+    overlay::spawn_reward_overlay,
     scan::run_scan,
 };
 
@@ -96,6 +97,10 @@ impl SettingsApp {
                 match result {
                     Ok(output) => {
                         let item_count = output.items.len();
+                        let overlay_status = spawn_reward_overlay(&output)
+                            .err()
+                            .map(|error| format!("; overlay failed: {error}"))
+                            .unwrap_or_default();
                         self.status = format!(
                             "{} scan found {item_count} item{} from {} text block{}",
                             output.kind.label(),
@@ -103,6 +108,7 @@ impl SettingsApp {
                             output.text_block_count,
                             plural_suffix(output.text_block_count),
                         );
+                        self.status.push_str(&overlay_status);
                         self.last_scan = Some(output);
                     }
                     Err(error) => {

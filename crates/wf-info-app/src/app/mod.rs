@@ -19,7 +19,7 @@ pub(crate) fn run(settings_path: PathBuf) -> Result<(), String> {
     .theme(Theme::Dark)
     .subscription(SettingsApp::subscription)
     .window(window::Settings {
-        size: Size::new(620.0, 400.0),
+        size: Size::new(1280.0, 720.0),
         min_size: Some(Size::new(520.0, 360.0)),
         ..Default::default()
     })

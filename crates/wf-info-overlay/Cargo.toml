@@ -1,0 +1,16 @@
+[package]
+name = "wf-info-overlay"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+iced.workspace = true
+iced_layershell.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd.workspace = true
+wayland-client.workspace = true
+wayland-protocols.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

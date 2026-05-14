@@ -9,6 +9,7 @@ iced.workspace = true
 tokio.workspace = true
 wf-info-capture = { path = "../wf-info-capture" }
 wf-info-core = { path = "../wf-info-core" }
+wf-info-overlay = { path = "../wf-info-overlay" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ashpd.workspace = true
