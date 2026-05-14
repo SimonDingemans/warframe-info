@@ -11,8 +11,8 @@ mod display;
 pub mod platform;
 
 pub use display::{
-    display_outputs, DisplayBackend, DisplayOutput, DisplayOutputsFuture, DisplayResult,
-    DynDisplayBackend,
+    display_outputs, reset_display_restore_token, DisplayBackend, DisplayOutput,
+    DisplayOutputsFuture, DisplayResult, DynDisplayBackend,
 };
 
 const DEFAULT_MONITOR_WIDTH: u32 = 1920;

@@ -18,6 +18,10 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
+    if let Some(result) = overlay::run_test_reward_overlay_from_args(std::env::args_os().skip(1)) {
+        return result;
+    }
+
     if let Some(result) = overlay::run_reward_overlay_from_args(std::env::args_os().skip(1)) {
         return result;
     }

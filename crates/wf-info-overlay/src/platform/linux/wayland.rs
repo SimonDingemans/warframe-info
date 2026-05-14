@@ -2,6 +2,7 @@ use ashpd::desktop::{
     screencast::{CursorMode, Screencast, SelectSourcesOptions, SourceType, StartCastOptions},
     PersistMode,
 };
+use std::{fs, path::PathBuf};
 use wayland_client::{
     delegate_noop,
     globals::{registry_queue_init, GlobalListContents},
@@ -29,12 +30,18 @@ impl crate::DisplayBackend for LinuxWaylandDisplayBackend {
     }
 }
 
+pub fn reset_screencast_token() -> crate::DisplayResult<()> {
+    remove_screencast_token(&screencast_token_path())
+}
+
 async fn display_outputs() -> crate::DisplayResult<Vec<DisplayOutput>> {
     let proxy = Screencast::new().await.map_err(|error| error.to_string())?;
     let session = proxy
         .create_session(Default::default())
         .await
         .map_err(|error| error.to_string())?;
+    let token_path = screencast_token_path();
+    let restore_token = read_screencast_token(&token_path)?;
 
     proxy
         .select_sources(
@@ -43,7 +50,8 @@ async fn display_outputs() -> crate::DisplayResult<Vec<DisplayOutput>> {
                 .set_cursor_mode(CursorMode::Hidden)
                 .set_sources(Some(SourceType::Monitor.into()))
                 .set_multiple(true)
-                .set_persist_mode(PersistMode::DoNot),
+                .set_restore_token(restore_token.as_deref())
+                .set_persist_mode(PersistMode::ExplicitlyRevoked),
         )
         .await
         .map_err(|error| error.to_string())?;
@@ -54,6 +62,10 @@ async fn display_outputs() -> crate::DisplayResult<Vec<DisplayOutput>> {
         .map_err(|error| error.to_string())?
         .response()
         .map_err(|error| error.to_string())?;
+
+    if let Some(token) = response.restore_token() {
+        write_screencast_token(&token_path, token)?;
+    }
 
     let wayland_outputs = detect_wayland_outputs().unwrap_or_default();
 
@@ -110,6 +122,58 @@ fn close_pair(left: (i32, i32), right: (i32, i32)) -> bool {
 
 fn abs_diff(left: i32, right: i32) -> u32 {
     left.abs_diff(right)
+}
+
+fn screencast_token_path() -> PathBuf {
+    std::env::var_os("XDG_CACHE_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
+        .unwrap_or_else(std::env::temp_dir)
+        .join("warframe-info")
+        .join("wayland-monitor-screencast-token")
+}
+
+fn read_screencast_token(path: &PathBuf) -> crate::DisplayResult<Option<String>> {
+    match fs::read_to_string(path) {
+        Ok(token) => {
+            let token = token.trim().to_string();
+            Ok((!token.is_empty()).then_some(token))
+        }
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(source) => Err(format!(
+            "failed to access Wayland screencast restore token at {}: {source}",
+            path.display()
+        )),
+    }
+}
+
+fn write_screencast_token(path: &PathBuf, token: &str) -> crate::DisplayResult<()> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|source| {
+            format!(
+                "failed to access Wayland screencast restore token at {}: {source}",
+                parent.display()
+            )
+        })?;
+    }
+
+    fs::write(path, token).map_err(|source| {
+        format!(
+            "failed to access Wayland screencast restore token at {}: {source}",
+            path.display()
+        )
+    })
+}
+
+fn remove_screencast_token(path: &PathBuf) -> crate::DisplayResult<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(source) => Err(format!(
+            "failed to access Wayland screencast restore token at {}: {source}",
+            path.display()
+        )),
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

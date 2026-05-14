@@ -30,3 +30,7 @@ pub async fn display_outputs() -> DisplayResult<Vec<DisplayOutput>> {
         .display_outputs()
         .await
 }
+
+pub fn reset_display_restore_token() -> DisplayResult<()> {
+    crate::platform::reset_display_restore_token()
+}

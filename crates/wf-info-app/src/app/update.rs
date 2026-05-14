@@ -3,7 +3,7 @@ use wf_info_core::{AppSettings, ScanKind};
 
 use crate::{
     hotkeys::{self, HotkeyEvent},
-    overlay::spawn_reward_overlay,
+    overlay::{spawn_reward_overlay, spawn_test_reward_overlay},
     scan::run_scan,
 };
 
@@ -85,6 +85,32 @@ impl SettingsApp {
                     self.hotkey_status = status;
                 }
             },
+            Message::ScreenCapturePermissionFinished(result) => match result {
+                Ok(()) => {
+                    self.status = "Screen capture permission ready".to_owned();
+                }
+                Err(error) => {
+                    self.status = format!("Screen capture permission failed: {error}");
+                }
+            },
+            Message::ResetScreenCaptureTokenRequested => {
+                match crate::scan::reset_screen_capture_restore_token() {
+                    Ok(()) => {
+                        self.status = "Screen capture token reset".to_owned();
+                    }
+                    Err(error) => {
+                        self.status = format!("Could not reset screen capture token: {error}");
+                    }
+                }
+            }
+            Message::TestOverlayRequested => match spawn_test_reward_overlay() {
+                Ok(()) => {
+                    self.status = "Test overlay spawned".to_owned();
+                }
+                Err(error) => {
+                    self.status = format!("Test overlay failed: {error}");
+                }
+            },
             Message::RewardScanRequested => {
                 return self.start_scan(ScanKind::Reward);
             }
@@ -95,12 +121,14 @@ impl SettingsApp {
                 self.is_scanning = false;
 
                 match result {
-                    Ok(output) => {
+                    Ok(report) => {
+                        let output = report.output;
                         let item_count = output.items.len();
-                        let overlay_status = spawn_reward_overlay(&output)
-                            .err()
-                            .map(|error| format!("; overlay failed: {error}"))
-                            .unwrap_or_default();
+                        let overlay_status =
+                            spawn_reward_overlay(&output, report.overlay_output_size)
+                                .err()
+                                .map(|error| format!("; overlay failed: {error}"))
+                                .unwrap_or_default();
                         self.status = format!(
                             "{} scan found {item_count} item{} from {} text block{}",
                             output.kind.label(),

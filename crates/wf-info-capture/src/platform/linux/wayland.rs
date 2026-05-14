@@ -8,14 +8,18 @@ use std::{
 use ashpd::desktop::{
     screencast::{
         CursorMode, Screencast, SelectSourcesOptions, SourceType, Stream as ScreencastStream,
+        Streams,
     },
-    PersistMode,
+    PersistMode, Session,
 };
 use image::{DynamicImage, RgbaImage};
 use pipewire as pw;
 use pw::{properties::properties, spa};
 
-use crate::{CaptureError, CaptureFuture, CaptureResult, ScreenCapture, Screenshot};
+use crate::{
+    CaptureError, CaptureFuture, CapturePermissionFuture, CaptureResult, ScreenCapture,
+    ScreenCaptureSource, Screenshot,
+};
 
 #[derive(Debug, Clone, Default)]
 pub struct LinuxWaylandCapture;
@@ -28,26 +32,71 @@ impl LinuxWaylandCapture {
 
 impl ScreenCapture for LinuxWaylandCapture {
     fn capture_screen(&self) -> CaptureFuture<'_> {
-        Box::pin(async { capture_warframe_window_with_portal().await })
+        Box::pin(async { capture_screen_with_portal().await })
+    }
+
+    fn request_permission(&self) -> CapturePermissionFuture<'_> {
+        Box::pin(async { request_screen_capture_permission_with_portal().await })
     }
 }
 
-async fn capture_warframe_window_with_portal() -> CaptureResult<Screenshot> {
+pub fn reset_screencast_token() -> CaptureResult<()> {
+    remove_screencast_token(&screencast_token_path())
+}
+
+async fn capture_screen_with_portal() -> CaptureResult<Screenshot> {
     if std::env::var_os("WAYLAND_DISPLAY").is_none() {
         return Err(CaptureError::NotWaylandSession);
     }
 
-    let (stream, fd) = open_warframe_window_stream().await?;
+    let (stream, fd) = open_screen_stream().await?;
+    let source = screen_capture_source(&stream);
     let image = capture_pipewire_frame(stream.pipe_wire_node_id(), fd)?;
 
-    Ok(Screenshot { image })
+    Ok(Screenshot { image, source })
 }
 
-async fn open_warframe_window_stream() -> CaptureResult<(ScreencastStream, std::os::fd::OwnedFd)> {
+async fn request_screen_capture_permission_with_portal() -> CaptureResult<()> {
+    if std::env::var_os("WAYLAND_DISPLAY").is_none() {
+        return Err(CaptureError::NotWaylandSession);
+    }
+
+    let (_session, response) = request_screen_capture_response().await?;
+
+    if response.streams().is_empty() {
+        return Err(CaptureError::WaylandScreencastMissingStream);
+    }
+
+    Ok(())
+}
+
+async fn open_screen_stream() -> CaptureResult<(ScreencastStream, std::os::fd::OwnedFd)> {
     let proxy = Screencast::new().await?;
+    let (session, response) = request_screen_capture_response_with_proxy(&proxy).await?;
+
+    let stream = response
+        .streams()
+        .first()
+        .cloned()
+        .ok_or(CaptureError::WaylandScreencastMissingStream)?;
+    let fd = proxy
+        .open_pipe_wire_remote(&session, Default::default())
+        .await?;
+
+    Ok((stream, fd))
+}
+
+async fn request_screen_capture_response() -> CaptureResult<(Session<Screencast>, Streams)> {
+    let proxy = Screencast::new().await?;
+    request_screen_capture_response_with_proxy(&proxy).await
+}
+
+async fn request_screen_capture_response_with_proxy(
+    proxy: &Screencast,
+) -> CaptureResult<(Session<Screencast>, Streams)> {
     let available_sources = proxy.available_source_types().await?;
-    if !available_sources.contains(SourceType::Window) {
-        return Err(CaptureError::WaylandWindowCaptureUnavailable);
+    if !available_sources.contains(SourceType::Monitor) {
+        return Err(CaptureError::WaylandScreenCaptureUnavailable);
     }
 
     let token_path = screencast_token_path();
@@ -59,7 +108,7 @@ async fn open_warframe_window_stream() -> CaptureResult<(ScreencastStream, std::
             &session,
             SelectSourcesOptions::default()
                 .set_cursor_mode(CursorMode::Hidden)
-                .set_sources(Some(SourceType::Window.into()))
+                .set_sources(Some(SourceType::Monitor.into()))
                 .set_multiple(false)
                 .set_restore_token(restore_token.as_deref())
                 .set_persist_mode(PersistMode::ExplicitlyRevoked),
@@ -75,16 +124,18 @@ async fn open_warframe_window_stream() -> CaptureResult<(ScreencastStream, std::
         write_screencast_token(&token_path, token)?;
     }
 
-    let stream = response
-        .streams()
-        .first()
-        .cloned()
-        .ok_or(CaptureError::WaylandScreencastMissingStream)?;
-    let fd = proxy
-        .open_pipe_wire_remote(&session, Default::default())
-        .await?;
+    Ok((session, response))
+}
 
-    Ok((stream, fd))
+fn screen_capture_source(stream: &ScreencastStream) -> Option<ScreenCaptureSource> {
+    let (width, height) = stream.size()?;
+    if width <= 0 || height <= 0 {
+        return None;
+    }
+
+    Some(ScreenCaptureSource {
+        size: (width as u32, height as u32),
+    })
 }
 
 struct PipeWireFrameState {
@@ -313,7 +364,7 @@ fn screencast_token_path() -> PathBuf {
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))
         .unwrap_or_else(std::env::temp_dir)
         .join("warframe-info")
-        .join("wayland-screencast-token")
+        .join("wayland-monitor-screencast-token")
 }
 
 fn read_screencast_token(path: &PathBuf) -> CaptureResult<Option<String>> {
@@ -342,6 +393,17 @@ fn write_screencast_token(path: &PathBuf, token: &str) -> CaptureResult<()> {
         path: path.clone(),
         source,
     })
+}
+
+fn remove_screencast_token(path: &PathBuf) -> CaptureResult<()> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(source) => Err(CaptureError::WaylandScreencastToken {
+            path: path.clone(),
+            source,
+        }),
+    }
 }
 
 fn pipewire_error(error: impl std::fmt::Display) -> CaptureError {

@@ -8,3 +8,7 @@ impl crate::DisplayBackend for UnsupportedDisplayBackend {
         })
     }
 }
+
+pub fn reset_display_restore_token() -> crate::DisplayResult<()> {
+    Err("overlay display selection is not supported on this platform".to_owned())
+}

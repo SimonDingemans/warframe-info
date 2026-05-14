@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use iced::{window, Size, Theme};
+use iced::{window, Size, Task, Theme};
 
 mod message;
 mod state;
@@ -11,7 +11,22 @@ use state::SettingsApp;
 
 pub(crate) fn run(settings_path: PathBuf) -> Result<(), String> {
     iced::application(
-        move || SettingsApp::load(settings_path.clone()),
+        move || {
+            let mut app = SettingsApp::load(settings_path.clone());
+
+            if crate::scan::should_request_screen_capture_permission() {
+                app.status = "Requesting screen capture permission".to_owned();
+
+                (
+                    app,
+                    Task::perform(crate::scan::request_screen_capture_permission(), |result| {
+                        message::Message::ScreenCapturePermissionFinished(result)
+                    }),
+                )
+            } else {
+                (app, Task::none())
+            }
+        },
         SettingsApp::update,
         SettingsApp::view,
     )

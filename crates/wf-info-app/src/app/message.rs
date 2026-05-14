@@ -1,6 +1,6 @@
-use wf_info_core::{AppSettings, ScanKind, ScanOutput};
+use wf_info_core::{AppSettings, ScanKind};
 
-use crate::hotkeys::HotkeyEvent;
+use crate::{hotkeys::HotkeyEvent, scan::ScanReport};
 
 #[derive(Debug, Clone)]
 pub(super) enum Message {
@@ -11,7 +11,10 @@ pub(super) enum Message {
     ConfigureHotkeysRequested,
     ConfigureHotkeysFinished(AppSettings, Result<String, String>),
     Hotkey(HotkeyEvent),
+    ScreenCapturePermissionFinished(Result<(), String>),
+    ResetScreenCaptureTokenRequested,
+    TestOverlayRequested,
     RewardScanRequested,
     InventoryScanRequested,
-    ScanFinished(ScanKind, Result<ScanOutput, String>),
+    ScanFinished(ScanKind, Result<ScanReport, String>),
 }

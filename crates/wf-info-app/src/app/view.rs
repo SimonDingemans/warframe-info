@@ -5,7 +5,7 @@ use iced::{
 };
 use wf_info_core::ScanOutput;
 
-use crate::hotkeys;
+use crate::{hotkeys, scan};
 
 use super::{message::Message, state::SettingsApp};
 
@@ -50,6 +50,14 @@ impl SettingsApp {
             );
         }
 
+        if scan::should_request_screen_capture_permission() {
+            actions = actions.push(
+                button("Reset Screen Token")
+                    .on_press(Message::ResetScreenCaptureTokenRequested)
+                    .padding([8, 14]),
+            );
+        }
+
         let reward_scan_button = if self.is_scanning {
             button("Reward Scan").padding([8, 14])
         } else {
@@ -65,7 +73,14 @@ impl SettingsApp {
                 .padding([8, 14])
         };
 
-        let pipeline_actions = row![reward_scan_button, inventory_scan_button].spacing(10);
+        let pipeline_actions = row![
+            reward_scan_button,
+            inventory_scan_button,
+            button("Test Overlay")
+                .on_press(Message::TestOverlayRequested)
+                .padding([8, 14]),
+        ]
+        .spacing(10);
 
         let results = scan_results(self.last_scan.as_ref());
 
@@ -119,7 +134,7 @@ fn scan_results(output: Option<&ScanOutput>) -> Element<'_, Message> {
         content = content.push(text("No items found").size(14));
     } else {
         for item in &output.items {
-            content = content.push(text(item).size(16));
+            content = content.push(text(item.summary()).size(16));
         }
     }
 

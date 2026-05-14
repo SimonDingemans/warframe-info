@@ -8,6 +8,8 @@ use wf_info_ocr::{
     text::WarframeTextNormalizer,
 };
 
+use crate::item_database::{ItemDatabase, ItemDatabaseError, WarframeItem};
+
 pub type ScanResult<T> = Result<T, ScanError>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -25,7 +27,7 @@ impl ScanKind {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ScanOutput {
     pub kind: ScanKind,
     pub source_width: u32,
@@ -33,17 +35,26 @@ pub struct ScanOutput {
     pub cropped_width: u32,
     pub cropped_height: u32,
     pub text_block_count: usize,
-    pub items: Vec<String>,
+    pub items: Vec<WarframeItem>,
 }
 
 pub fn scan_image(kind: ScanKind, screenshot: &DynamicImage) -> ScanResult<ScanOutput> {
+    let database = ItemDatabase::from_default_cache_dir()?;
+    scan_image_with_item_database(kind, screenshot, &database)
+}
+
+pub fn scan_image_with_item_database(
+    kind: ScanKind,
+    screenshot: &DynamicImage,
+    database: &ItemDatabase,
+) -> ScanResult<ScanOutput> {
     match kind {
-        ScanKind::Reward => scan_reward_image(screenshot),
-        ScanKind::Inventory => scan_inventory_image(screenshot),
+        ScanKind::Reward => scan_reward_image(screenshot, database),
+        ScanKind::Inventory => scan_inventory_image(screenshot, database),
     }
 }
 
-fn scan_reward_image(screenshot: &DynamicImage) -> ScanResult<ScanOutput> {
+fn scan_reward_image(screenshot: &DynamicImage, database: &ItemDatabase) -> ScanResult<ScanOutput> {
     let cropped = RewardScreenCrop::default().crop_image(screenshot)?;
     let pipeline = ItemPipeline::new(WarframeTextNormalizer).with_min_text_score(0.75);
     let mut ocr = load_ocr_engine().map_err(|source| ScanError::Ocr {
@@ -62,11 +73,14 @@ fn scan_reward_image(screenshot: &DynamicImage) -> ScanResult<ScanOutput> {
         cropped_width: cropped.image.width(),
         cropped_height: cropped.image.height(),
         text_block_count: output.text_blocks.len(),
-        items: output.items,
+        items: database.find_items(output.items.iter().map(String::as_str)),
     })
 }
 
-fn scan_inventory_image(screenshot: &DynamicImage) -> ScanResult<ScanOutput> {
+fn scan_inventory_image(
+    screenshot: &DynamicImage,
+    database: &ItemDatabase,
+) -> ScanResult<ScanOutput> {
     let cropped = InventoryCrop::default().crop_image(screenshot)?;
     let pipeline = ItemPipeline::new(WarframeTextNormalizer).with_min_text_score(0.75);
     let mut ocr = load_ocr_engine().map_err(|source| ScanError::Ocr {
@@ -85,7 +99,7 @@ fn scan_inventory_image(screenshot: &DynamicImage) -> ScanResult<ScanOutput> {
         cropped_width: cropped.image.width(),
         cropped_height: cropped.image.height(),
         text_block_count: output.text_blocks.len(),
-        items: output.items,
+        items: database.find_items(output.items.iter().map(String::as_str)),
     })
 }
 
@@ -96,4 +110,7 @@ pub enum ScanError {
 
     #[error("OCR pipeline failed: {message}")]
     Ocr { message: String },
+
+    #[error("item database failed: {0}")]
+    ItemDatabase(#[from] ItemDatabaseError),
 }
