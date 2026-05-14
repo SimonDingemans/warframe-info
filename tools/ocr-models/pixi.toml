@@ -1,0 +1,24 @@
+[workspace]
+authors = ["Simon Dingemans <simon.dingemans@gmail.com>"]
+channels = ["conda-forge"]
+name = "ocr_models"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+download-models = "hf download PaddlePaddle/PP-OCRv5_server_det --local-dir models/PP-OCRv5_server_det && hf download PaddlePaddle/en_PP-OCRv5_mobile_rec --local-dir models/en_PP-OCRv5_mobile_rec"
+export-onnx = "mkdir -p ../../assets/ocr && paddle2onnx --model_dir models/PP-OCRv5_server_det --model_filename inference.json --params_filename inference.pdiparams --save_file ../../assets/ocr/det_model.onnx --opset_version 12 && paddle2onnx --model_dir models/en_PP-OCRv5_mobile_rec --model_filename inference.json --params_filename inference.pdiparams --save_file ../../assets/ocr/rec_model.onnx --opset_version 12"
+
+[activation.env]
+PADDLE_PDX_ENABLE_MKLDNN_BYDEFAULT = "0"
+
+[dependencies]
+python = ">=3.12,<3.13"
+numpy = "<2.4"
+pip = ">=26.1.1,<27"
+
+[pypi-dependencies]
+paddleocr = ">=3.5.0, <4"
+paddlepaddle = ">=3.2.2, <3.3"
+paddle2onnx = ">=2.1.0, <3"
+huggingface-hub = ">=1.0.0, <2"

@@ -1,0 +1,10 @@
+# Pixi environments
+.pixi/*
+!.pixi/config.toml
+
+# Downloaded PaddleX model sources
+models/
+
+# Generated local artifacts
+*.onnx
+__pycache__/
