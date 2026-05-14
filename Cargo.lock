@@ -147,6 +147,7 @@ dependencies = [
  "iced",
  "info_core",
  "overlay",
+ "overlay_wayland",
  "serde",
  "serde_json",
  "tokio",
@@ -3742,11 +3743,16 @@ dependencies = [
 [[package]]
 name = "overlay"
 version = "0.1.0"
+
+[[package]]
+name = "overlay_wayland"
+version = "0.1.0"
 dependencies = [
  "ashpd",
  "iced",
  "iced_layershell",
  "image 0.24.9",
+ "overlay",
  "tokio",
  "wayland-client",
  "wayland-protocols",

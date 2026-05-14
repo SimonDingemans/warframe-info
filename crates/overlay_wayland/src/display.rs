@@ -2,6 +2,7 @@ use ashpd::desktop::{
     screencast::{CursorMode, Screencast, SelectSourcesOptions, SourceType, StartCastOptions},
     PersistMode,
 };
+use overlay::DisplayOutput;
 use std::{fs, path::PathBuf};
 use wayland_client::{
     delegate_noop,
@@ -13,8 +14,6 @@ use wayland_protocols::xdg::xdg_output::zv1::client::{
     zxdg_output_manager_v1::ZxdgOutputManagerV1, zxdg_output_v1, zxdg_output_v1::ZxdgOutputV1,
 };
 
-use crate::DisplayOutput;
-
 #[derive(Debug, Clone, Default)]
 pub struct LinuxWaylandDisplayBackend;
 
@@ -24,17 +23,17 @@ impl LinuxWaylandDisplayBackend {
     }
 }
 
-impl crate::DisplayBackend for LinuxWaylandDisplayBackend {
-    fn display_outputs(&self) -> crate::DisplayOutputsFuture<'_> {
+impl overlay::DisplayBackend for LinuxWaylandDisplayBackend {
+    fn display_outputs(&self) -> overlay::DisplayOutputsFuture<'_> {
         Box::pin(async { display_outputs().await })
     }
 }
 
-pub fn reset_screencast_token() -> crate::DisplayResult<()> {
+pub fn reset_screencast_token() -> overlay::DisplayResult<()> {
     remove_screencast_token(&screencast_token_path())
 }
 
-async fn display_outputs() -> crate::DisplayResult<Vec<DisplayOutput>> {
+async fn display_outputs() -> overlay::DisplayResult<Vec<DisplayOutput>> {
     let proxy = Screencast::new().await.map_err(|error| error.to_string())?;
     let session = proxy
         .create_session(Default::default())
@@ -133,7 +132,7 @@ fn screencast_token_path() -> PathBuf {
         .join("wayland-monitor-screencast-token")
 }
 
-fn read_screencast_token(path: &PathBuf) -> crate::DisplayResult<Option<String>> {
+fn read_screencast_token(path: &PathBuf) -> overlay::DisplayResult<Option<String>> {
     match fs::read_to_string(path) {
         Ok(token) => {
             let token = token.trim().to_string();
@@ -147,7 +146,7 @@ fn read_screencast_token(path: &PathBuf) -> crate::DisplayResult<Option<String>>
     }
 }
 
-fn write_screencast_token(path: &PathBuf, token: &str) -> crate::DisplayResult<()> {
+fn write_screencast_token(path: &PathBuf, token: &str) -> overlay::DisplayResult<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|source| {
             format!(
@@ -165,7 +164,7 @@ fn write_screencast_token(path: &PathBuf, token: &str) -> crate::DisplayResult<(
     })
 }
 
-fn remove_screencast_token(path: &PathBuf) -> crate::DisplayResult<()> {
+fn remove_screencast_token(path: &PathBuf) -> overlay::DisplayResult<()> {
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(source) if source.kind() == std::io::ErrorKind::NotFound => Ok(()),

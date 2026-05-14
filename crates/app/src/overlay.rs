@@ -86,7 +86,7 @@ fn run_test_reward_overlay() -> Result<(), String> {
         .enable_all()
         .build()
         .map_err(|error| error.to_string())?
-        .block_on(overlay::display_outputs())?
+        .block_on(display_outputs())?
         .into_iter()
         .max_by_key(|output| {
             (
@@ -98,13 +98,12 @@ fn run_test_reward_overlay() -> Result<(), String> {
         })
         .ok_or_else(|| "no display outputs were selected".to_owned())?;
 
-    overlay::run(RewardOverlay {
+    run_overlay(RewardOverlay {
         output_name: output.name,
         output_size: Some(output.size),
         duration: Some(Duration::from_secs(5)),
         rewards: test_rewards(),
     })
-    .map_err(|error| error.to_string())
 }
 
 fn run_reward_overlay(args: impl IntoIterator<Item = OsString>) -> Result<(), String> {
@@ -139,7 +138,7 @@ fn run_reward_overlay(args: impl IntoIterator<Item = OsString>) -> Result<(), St
             .enable_all()
             .build()
             .map_err(|error| error.to_string())?
-            .block_on(overlay::display_outputs())?;
+            .block_on(display_outputs())?;
         let Some(output) = outputs
             .into_iter()
             .find(|output| output.matches_name(&target_output))
@@ -153,13 +152,32 @@ fn run_reward_overlay(args: impl IntoIterator<Item = OsString>) -> Result<(), St
         output_size = Some(output.size);
     }
 
-    overlay::run(RewardOverlay {
+    run_overlay(RewardOverlay {
         output_name,
         output_size,
         duration: None,
         rewards,
     })
-    .map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "linux")]
+async fn display_outputs() -> Result<Vec<overlay::DisplayOutput>, String> {
+    overlay_wayland::display_outputs().await
+}
+
+#[cfg(not(target_os = "linux"))]
+async fn display_outputs() -> Result<Vec<overlay::DisplayOutput>, String> {
+    Err("Wayland reward overlays are not supported on this platform".to_owned())
+}
+
+#[cfg(target_os = "linux")]
+fn run_overlay(reward_overlay: RewardOverlay) -> Result<(), String> {
+    overlay_wayland::run(reward_overlay).map_err(|error| error.to_string())
+}
+
+#[cfg(not(target_os = "linux"))]
+fn run_overlay(_reward_overlay: RewardOverlay) -> Result<(), String> {
+    Err("Wayland reward overlays are not supported on this platform".to_owned())
 }
 
 fn reward_arg(item: &WarframeItem) -> String {

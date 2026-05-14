@@ -18,3 +18,4 @@ wf-market.workspace = true
 ashpd.workspace = true
 capture_wayland = { path = "../capture_wayland" }
 futures-util.workspace = true
+overlay_wayland = { path = "../overlay_wayland" }

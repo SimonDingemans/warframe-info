@@ -24,7 +24,7 @@ pub(crate) fn reset_screen_capture_restore_token() -> Result<(), String> {
         errors.push(error.to_string());
     }
 
-    if let Err(error) = overlay::reset_display_restore_token() {
+    if let Err(error) = reset_overlay_display_restore_token() {
         errors.push(error);
     }
 
@@ -33,6 +33,16 @@ pub(crate) fn reset_screen_capture_restore_token() -> Result<(), String> {
     } else {
         Err(errors.join("; "))
     }
+}
+
+#[cfg(target_os = "linux")]
+fn reset_overlay_display_restore_token() -> Result<(), String> {
+    overlay_wayland::reset_display_restore_token()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn reset_overlay_display_restore_token() -> Result<(), String> {
+    Ok(())
 }
 
 pub(crate) async fn run_scan(kind: ScanKind) -> Result<ScanReport, String> {

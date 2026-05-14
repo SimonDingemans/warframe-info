@@ -7,6 +7,7 @@ members = [
     "crates/info_core",
     "crates/crop",
     "crates/overlay",
+    "crates/overlay_wayland",
     "crates/ocr",
 ]
 

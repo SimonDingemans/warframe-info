@@ -5,7 +5,7 @@ use overlay::{DisplayOutput, RewardHighlight, RewardOverlay, RewardOverlayEntry}
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let output = select_rightmost_output(
-        overlay::display_outputs()
+        overlay_wayland::display_outputs()
             .await
             .map_err(std::io::Error::other)?,
     )
@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     eprintln!("{:?}", output);
 
-    overlay::run(RewardOverlay {
+    overlay_wayland::run(RewardOverlay {
         output_name: output.name,
         output_size: Some(output.size),
         duration: Some(Duration::from_secs(5)),

@@ -24,13 +24,3 @@ impl DisplayOutput {
             .unwrap_or(false)
     }
 }
-
-pub async fn display_outputs() -> DisplayResult<Vec<DisplayOutput>> {
-    crate::platform::default_display_backend()
-        .display_outputs()
-        .await
-}
-
-pub fn reset_display_restore_token() -> DisplayResult<()> {
-    crate::platform::reset_display_restore_token()
-}

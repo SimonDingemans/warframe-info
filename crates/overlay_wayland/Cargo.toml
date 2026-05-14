@@ -1,0 +1,16 @@
+[package]
+name = "overlay_wayland"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ashpd.workspace = true
+iced.workspace = true
+iced_layershell.workspace = true
+image.workspace = true
+overlay = { path = "../overlay" }
+wayland-client.workspace = true
+wayland-protocols.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
