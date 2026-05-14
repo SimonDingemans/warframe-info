@@ -44,6 +44,10 @@ impl InventoryGridLayout {
 impl ItemLayout for InventoryGridLayout {
     type Item = String;
 
+    fn should_recover_stacked_text_blocks(&self) -> bool {
+        true
+    }
+
     fn accepts_text_bounds(&self, bounds: &TextBounds, image_size: ImageSize) -> bool {
         bounds.y_min >= image_size.height * self.safe_top_ratio
             && bounds.y_max <= image_size.height * self.safe_bottom_ratio

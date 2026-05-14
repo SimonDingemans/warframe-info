@@ -90,6 +90,10 @@ pub trait TextNormalizer {
 pub trait ItemLayout {
     type Item;
 
+    fn should_recover_stacked_text_blocks(&self) -> bool {
+        false
+    }
+
     fn accepts_text_bounds(&self, _bounds: &TextBounds, _image_size: ImageSize) -> bool {
         true
     }
@@ -166,7 +170,134 @@ where
             });
         }
 
+        if layout.should_recover_stacked_text_blocks() {
+            let recovered_blocks =
+                self.recover_stacked_text_blocks(ocr, cropped_image, &text_blocks)?;
+            text_blocks.extend(recovered_blocks);
+        }
+
         let items = layout.group_text_blocks(&text_blocks, image_size);
         Ok(PipelineOutput { text_blocks, items })
     }
+
+    fn recover_stacked_text_blocks<E>(
+        &self,
+        ocr: &mut E,
+        cropped_image: &DynamicImage,
+        text_blocks: &[TextBlock],
+    ) -> PipelineResult<Vec<TextBlock>>
+    where
+        E: TextOcrEngine,
+    {
+        let mut recovered_blocks = Vec::new();
+
+        for block in text_blocks {
+            if !is_single_word(&block.text)
+                || has_stacked_prefix(block, text_blocks)
+                || has_same_line_neighbor(block, text_blocks)
+            {
+                continue;
+            }
+
+            let height = block.bounds.height();
+            let width = block.bounds.width();
+            let recovery_bounds = TextBounds {
+                x_min: (block.bounds.x_min - width * 0.15).max(0.0),
+                y_min: (block.bounds.y_min - height * 2.5).max(0.0),
+                x_max: (block.bounds.x_max + width * 0.15).min(cropped_image.width() as f32),
+                y_max: block.bounds.y_min,
+            };
+
+            if recovery_bounds.height() < height * 0.75 || recovery_bounds.width() < height {
+                continue;
+            }
+
+            let Some(text_crop) = recovery_bounds.crop_from(cropped_image) else {
+                continue;
+            };
+
+            let Some(recognized) = ocr.recognize_text(&text_crop)? else {
+                continue;
+            };
+
+            if recognized.score < self.min_text_score {
+                continue;
+            }
+
+            let Some(text) = self.normalizer.normalize(&recognized.text) else {
+                continue;
+            };
+
+            if text == block.text
+                || text_blocks.iter().any(|existing| {
+                    existing.text == text
+                        && horizontal_overlap_ratio(&existing.bounds, &recovery_bounds) >= 0.25
+                        && vertical_overlap_ratio(&existing.bounds, &recovery_bounds) >= 0.25
+                })
+            {
+                continue;
+            }
+
+            recovered_blocks.push(TextBlock {
+                text,
+                score: recognized.score,
+                bounds: recovery_bounds,
+            });
+        }
+
+        Ok(recovered_blocks)
+    }
+}
+
+fn is_single_word(text: &str) -> bool {
+    text.split_whitespace().count() == 1
+}
+
+fn has_stacked_prefix(block: &TextBlock, blocks: &[TextBlock]) -> bool {
+    blocks.iter().any(|candidate| {
+        !std::ptr::eq(candidate, block)
+            && candidate.bounds.center_y() < block.bounds.center_y()
+            && vertical_gap(&candidate.bounds, &block.bounds) <= block.bounds.height() * 2.0
+            && horizontal_overlap_ratio(&candidate.bounds, &block.bounds) >= 0.25
+    })
+}
+
+fn has_same_line_neighbor(block: &TextBlock, blocks: &[TextBlock]) -> bool {
+    blocks.iter().any(|candidate| {
+        !std::ptr::eq(candidate, block)
+            && vertical_overlap_ratio(&candidate.bounds, &block.bounds) >= 0.25
+            && horizontal_gap(&candidate.bounds, &block.bounds) <= block.bounds.height() * 2.0
+    })
+}
+
+fn vertical_gap(above: &TextBounds, below: &TextBounds) -> f32 {
+    (below.y_min - above.y_max).max(0.0)
+}
+
+fn horizontal_gap(a: &TextBounds, b: &TextBounds) -> f32 {
+    if a.x_max < b.x_min {
+        b.x_min - a.x_max
+    } else if b.x_max < a.x_min {
+        a.x_min - b.x_max
+    } else {
+        0.0
+    }
+}
+
+fn horizontal_overlap_ratio(a: &TextBounds, b: &TextBounds) -> f32 {
+    let overlap = a.x_max.min(b.x_max) - a.x_min.max(b.x_min);
+    if overlap <= 0.0 {
+        return 0.0;
+    }
+
+    overlap / a.width().min(b.width()).max(f32::EPSILON)
+}
+
+fn vertical_overlap_ratio(a: &TextBounds, b: &TextBounds) -> f32 {
+    let overlap = a.y_max.min(b.y_max) - a.y_min.max(b.y_min);
+    if overlap <= 0.0 {
+        return 0.0;
+    }
+
+    overlap / a.height().min(b.height()).max(f32::EPSILON)
 }

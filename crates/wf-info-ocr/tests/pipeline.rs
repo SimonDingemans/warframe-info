@@ -82,17 +82,21 @@ fn inventory_pipeline_extracts_expected_items(
     Ok(())
 }
 
-#[test]
-fn inventory_pipeline_keeps_stacked_arcane_name_in_reading_order() -> Result<(), Box<dyn Error>> {
+#[rstest(
+    image_path,
+    case::standard_resolution("inventory/screenshot_1920x1080_cropped.png"),
+    case::high_resolution("inventory/screenshot_3839x2160_cropped.png")
+)]
+fn inventory_pipeline_keeps_stacked_arcane_name_in_reading_order(
+    image_path: &str,
+) -> Result<(), Box<dyn Error>> {
     let _guard = PIPELINE_TEST_LOCK
         .lock()
         .expect("pipeline test lock poisoned");
     let pipeline = ItemPipeline::new(WarframeTextNormalizer).with_min_text_score(0.75);
     let mut ocr = load_ocr_engine()?;
     let layout = InventoryGridLayout::default();
-    let image = image::open(example_fixture_path(
-        "inventory/screenshot_1920x1080_cropped.png",
-    ))?;
+    let image = image::open(example_fixture_path(image_path))?;
 
     let output = pipeline.run(&mut ocr, &image, &layout)?;
 
@@ -100,6 +104,7 @@ fn inventory_pipeline_keeps_stacked_arcane_name_in_reading_order() -> Result<(),
         .items
         .iter()
         .any(|item| item == "Arcane Concentration"));
+    assert!(!output.items.iter().any(|item| item == "Concentration"));
     assert!(!output
         .items
         .iter()
