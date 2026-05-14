@@ -4,18 +4,17 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-global-hotkey.workspace = true
 iced.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 capture = { path = "../capture" }
+hotkeys = { path = "../hotkeys" }
 info_core = { path = "../info_core" }
 overlay = { path = "../overlay" }
 wf-market.workspace = true
 
 [target.'cfg(target_os = "linux")'.dependencies]
-ashpd.workspace = true
 capture_wayland = { path = "../capture_wayland" }
-futures-util.workspace = true
+hotkeys_wayland = { path = "../hotkeys_wayland" }
 overlay_wayland = { path = "../overlay_wayland" }

@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 
+use hotkeys::HotkeyBindings;
 use iced::Subscription;
 use info_core::AppSettings;
 
-use crate::hotkeys::HotkeyBindings;
-
 use super::message::Message;
+use crate::system_hotkeys;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AppTab {
@@ -31,7 +31,8 @@ impl SettingsApp {
     pub(super) fn load(settings_path: PathBuf) -> Self {
         match AppSettings::load_or_create(&settings_path) {
             Ok(settings) => {
-                let (hotkeys, hotkey_status) = HotkeyBindings::new(&settings);
+                let (hotkeys, hotkey_status) =
+                    HotkeyBindings::new(&settings, system_hotkeys::hotkey_backend());
 
                 Self {
                     settings_path,
@@ -49,7 +50,8 @@ impl SettingsApp {
             }
             Err(error) => {
                 let settings = AppSettings::default();
-                let (hotkeys, hotkey_status) = HotkeyBindings::new(&settings);
+                let (hotkeys, hotkey_status) =
+                    HotkeyBindings::new(&settings, system_hotkeys::hotkey_backend());
 
                 Self {
                     settings_path,

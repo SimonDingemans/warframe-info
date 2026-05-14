@@ -5,7 +5,7 @@ use iced::{
 };
 use info_core::ScanOutput;
 
-use crate::{hotkeys, scan};
+use crate::{scan, system_hotkeys};
 
 use super::{
     message::Message,
@@ -65,7 +65,7 @@ impl SettingsApp {
         ]
         .spacing(10);
 
-        if hotkeys::has_system_shortcut_configuration() {
+        if system_hotkeys::has_system_shortcut_configuration() {
             actions = actions.push(
                 button("Configure Hotkeys")
                     .on_press(Message::ConfigureHotkeysRequested)

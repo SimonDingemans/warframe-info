@@ -1,8 +1,8 @@
 mod app;
-mod hotkeys;
 mod market;
 mod overlay;
 mod scan;
+mod system_hotkeys;
 
 use std::process::ExitCode;
 

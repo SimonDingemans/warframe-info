@@ -139,11 +139,10 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 name = "app"
 version = "0.1.0"
 dependencies = [
- "ashpd",
  "capture",
  "capture_wayland",
- "futures-util",
- "global-hotkey",
+ "hotkeys",
+ "hotkeys_wayland",
  "iced",
  "info_core",
  "overlay",
@@ -1860,6 +1859,27 @@ name = "hmac-sha256"
 version = "1.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ec9d92d097f4749b64e8cc33d924d9f40a2d4eb91402b458014b781f5733d60f"
+
+[[package]]
+name = "hotkeys"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "global-hotkey",
+ "iced",
+ "info_core",
+]
+
+[[package]]
+name = "hotkeys_wayland"
+version = "0.1.0"
+dependencies = [
+ "ashpd",
+ "futures",
+ "futures-util",
+ "hotkeys",
+ "info_core",
+]
 
 [[package]]
 name = "http"

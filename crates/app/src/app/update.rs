@@ -1,10 +1,12 @@
 use iced::Task;
 use info_core::{AppSettings, ScanKind};
 
+use hotkeys::HotkeyEvent;
+
 use crate::{
-    hotkeys::{self, HotkeyEvent},
     overlay::{spawn_reward_overlay, spawn_test_reward_overlay},
     scan::run_scan,
+    system_hotkeys,
 };
 
 use super::{message::Message, state::SettingsApp};
@@ -63,7 +65,7 @@ impl SettingsApp {
                 let configured_settings = settings.clone();
 
                 return Task::perform(
-                    hotkeys::configure_system_shortcuts(settings),
+                    system_hotkeys::configure_system_shortcuts(settings),
                     move |result| {
                         Message::ConfigureHotkeysFinished(
                             configured_settings.clone(),

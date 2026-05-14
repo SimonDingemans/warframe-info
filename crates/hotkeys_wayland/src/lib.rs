@@ -8,23 +8,26 @@ use ashpd::desktop::{
     CreateSessionOptions,
 };
 use ashpd::WindowIdentifier;
+use futures::{channel::mpsc, SinkExt};
 use futures_util::StreamExt;
-use iced::futures::{channel::mpsc, SinkExt};
-use info_core::{AppSettings, ScanKind};
+use hotkeys::{BoxFuture, ShortcutIntegration, ShortcutIntegrationHandle};
+use info_core::{AppSettings, HotkeyEvent, ScanKind};
 
-use super::super::{BoxFuture, HotkeyEvent, SystemShortcutIntegration};
+static SHORTCUT_INTEGRATION: WaylandShortcutIntegration = WaylandShortcutIntegration;
 
-pub(super) static SYSTEM_SHORTCUTS: LinuxSystemShortcuts = LinuxSystemShortcuts;
+pub fn shortcut_integration() -> ShortcutIntegrationHandle {
+    ShortcutIntegrationHandle::new("wayland-portal", &SHORTCUT_INTEGRATION)
+}
 
-pub(super) struct LinuxSystemShortcuts;
+struct WaylandShortcutIntegration;
 
-impl SystemShortcutIntegration for LinuxSystemShortcuts {
-    fn registration_status(&self, _settings: &AppSettings) -> String {
-        "Wayland global shortcuts requested through the desktop portal".to_owned()
+impl ShortcutIntegration for WaylandShortcutIntegration {
+    fn registration_status(&self, settings: &AppSettings) -> String {
+        registration_status(settings)
     }
 
     fn configure_shortcuts(&self, settings: AppSettings) -> BoxFuture<Result<String, String>> {
-        Box::pin(configure_desktop_portal_shortcuts(settings))
+        Box::pin(configure_shortcuts(settings))
     }
 
     fn watch_shortcuts(
@@ -32,11 +35,15 @@ impl SystemShortcutIntegration for LinuxSystemShortcuts {
         settings: AppSettings,
         sender: mpsc::Sender<HotkeyEvent>,
     ) -> BoxFuture<()> {
-        Box::pin(watch_wayland_portal_hotkeys(settings, sender))
+        Box::pin(watch_shortcuts(settings, sender))
     }
 }
 
-async fn configure_desktop_portal_shortcuts(settings: AppSettings) -> Result<String, String> {
+pub fn registration_status(_settings: &AppSettings) -> String {
+    "Wayland global shortcuts requested through the desktop portal".to_owned()
+}
+
+pub async fn configure_shortcuts(settings: AppSettings) -> Result<String, String> {
     let portal = GlobalShortcuts::new()
         .await
         .map_err(|error| format!("Wayland global shortcuts unavailable: {error}"))?;
@@ -98,10 +105,6 @@ async fn configure_desktop_portal_shortcuts(settings: AppSettings) -> Result<Str
         configure_status,
         wayland_shortcut_summary(list_response.shortcuts(), &shortcuts),
     ))
-}
-
-async fn watch_wayland_portal_hotkeys(settings: AppSettings, sender: mpsc::Sender<HotkeyEvent>) {
-    watch_shortcuts(wayland_shortcut_specs(&settings), sender).await;
 }
 
 fn open_kde_shortcut_settings() -> Result<(), String> {
@@ -208,10 +211,9 @@ fn wayland_shortcut_summary(shortcuts: &[Shortcut], desired: &[WaylandShortcutSp
         .join(", ")
 }
 
-async fn watch_shortcuts(
-    shortcuts: Vec<WaylandShortcutSpec>,
-    mut sender: mpsc::Sender<HotkeyEvent>,
-) {
+pub async fn watch_shortcuts(settings: AppSettings, mut sender: mpsc::Sender<HotkeyEvent>) {
+    let shortcuts = wayland_shortcut_specs(&settings);
+
     let portal = match GlobalShortcuts::new().await {
         Ok(portal) => portal,
         Err(error) => {

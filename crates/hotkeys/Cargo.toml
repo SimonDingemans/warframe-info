@@ -1,0 +1,10 @@
+[package]
+name = "hotkeys"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+futures.workspace = true
+global-hotkey.workspace = true
+iced.workspace = true
+info_core = { path = "../info_core" }

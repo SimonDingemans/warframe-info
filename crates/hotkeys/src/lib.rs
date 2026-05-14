@@ -1,3 +1,5 @@
+pub mod unsupported;
+
 use std::{
     collections::HashMap,
     future::Future,
@@ -10,21 +12,19 @@ use std::{
     time::Duration,
 };
 
-mod platform;
-
+use futures::{channel::mpsc, executor, future, SinkExt, Stream};
 use global_hotkey::{
     hotkey::{HotKey, HotKeyParseError},
     GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
 };
-use iced::{
-    futures::{channel::mpsc, executor, future, SinkExt, Stream},
-    stream, Subscription,
-};
-use info_core::{platform::GlobalShortcutBackend, AppSettings, ScanKind};
+use iced::{stream, Subscription};
+use info_core::{AppSettings, ScanKind};
 
-pub(crate) type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
+pub use info_core::HotkeyEvent;
 
-pub(super) trait SystemShortcutIntegration: Sync {
+pub type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send + 'static>>;
+
+pub trait ShortcutIntegration: Sync {
     fn registration_status(&self, settings: &AppSettings) -> String;
 
     fn configure_shortcuts(&self, settings: AppSettings) -> BoxFuture<Result<String, String>>;
@@ -36,35 +36,81 @@ pub(super) trait SystemShortcutIntegration: Sync {
     ) -> BoxFuture<()>;
 }
 
-pub(crate) fn has_system_shortcut_configuration() -> bool {
-    info_core::platform::current().global_shortcut_backend()
-        == GlobalShortcutBackend::SystemConfigured
+#[derive(Clone, Copy)]
+pub struct ShortcutIntegrationHandle {
+    id: &'static str,
+    integration: &'static dyn ShortcutIntegration,
 }
 
-pub(crate) fn configure_system_shortcuts(
-    settings: AppSettings,
-) -> BoxFuture<Result<String, String>> {
-    platform::system_shortcuts().configure_shortcuts(settings)
+impl ShortcutIntegrationHandle {
+    pub const fn new(id: &'static str, integration: &'static dyn ShortcutIntegration) -> Self {
+        Self { id, integration }
+    }
+
+    pub fn registration_status(&self, settings: &AppSettings) -> String {
+        self.integration.registration_status(settings)
+    }
+
+    pub fn configure_shortcuts(&self, settings: AppSettings) -> BoxFuture<Result<String, String>> {
+        self.integration.configure_shortcuts(settings)
+    }
+
+    fn watch_shortcuts(
+        &self,
+        settings: AppSettings,
+        sender: mpsc::Sender<HotkeyEvent>,
+    ) -> BoxFuture<()> {
+        self.integration.watch_shortcuts(settings, sender)
+    }
 }
 
-pub(crate) struct HotkeyBindings {
+impl std::fmt::Debug for ShortcutIntegrationHandle {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("ShortcutIntegrationHandle")
+            .field("id", &self.id)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for ShortcutIntegrationHandle {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for ShortcutIntegrationHandle {}
+
+impl std::hash::Hash for ShortcutIntegrationHandle {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum HotkeyBackend {
+    Native,
+    Integrated(ShortcutIntegrationHandle),
+}
+
+pub struct HotkeyBindings {
     backend: HotkeyBackendState,
 }
 
 impl HotkeyBindings {
-    pub(crate) fn new(settings: &AppSettings) -> (Self, String) {
+    pub fn new(settings: &AppSettings, backend: HotkeyBackend) -> (Self, String) {
         let mut bindings = Self {
-            backend: make_hotkey_backend(),
+            backend: HotkeyBackendState::new(backend),
         };
         let status = bindings.configure(settings);
         (bindings, status)
     }
 
-    pub(crate) fn configure(&mut self, settings: &AppSettings) -> String {
+    pub fn configure(&mut self, settings: &AppSettings) -> String {
         self.backend.configure(settings)
     }
 
-    pub(crate) fn subscription(&self, settings: &AppSettings) -> Subscription<HotkeyEvent> {
+    pub fn subscription(&self, settings: &AppSettings) -> Subscription<HotkeyEvent> {
         Subscription::run_with(
             self.backend.watcher_config(settings),
             hotkey_event_subscription,
@@ -72,42 +118,36 @@ impl HotkeyBindings {
     }
 }
 
-#[derive(Debug, Clone)]
-pub(crate) enum HotkeyEvent {
-    Triggered(ScanKind),
-    Status(String),
-}
-
 enum HotkeyBackendState {
     Native(NativeHotkeyBackend),
-    SystemConfigured,
+    Integrated(ShortcutIntegrationHandle),
 }
 
 impl HotkeyBackendState {
+    fn new(backend: HotkeyBackend) -> Self {
+        match backend {
+            HotkeyBackend::Native => Self::Native(NativeHotkeyBackend::new()),
+            HotkeyBackend::Integrated(integration) => Self::Integrated(integration),
+        }
+    }
+
     fn configure(&mut self, settings: &AppSettings) -> String {
         match self {
             Self::Native(backend) => backend.configure(settings),
-            Self::SystemConfigured => platform::system_shortcuts().registration_status(settings),
+            Self::Integrated(integration) => integration.registration_status(settings),
         }
     }
 
     fn watcher_config(&self, settings: &AppSettings) -> HotkeyWatcherConfig {
         match self {
             Self::Native(backend) => HotkeyWatcherConfig::Native(backend.registered_bindings()),
-            Self::SystemConfigured => HotkeyWatcherConfig::SystemConfigured {
+            Self::Integrated(integration) => HotkeyWatcherConfig::Integrated {
                 reward_scan: settings.hotkeys.reward_scan.clone(),
                 inventory_scan: settings.hotkeys.inventory_scan.clone(),
+                integration: *integration,
             },
         }
     }
-}
-
-fn make_hotkey_backend() -> HotkeyBackendState {
-    if has_system_shortcut_configuration() {
-        return HotkeyBackendState::SystemConfigured;
-    }
-
-    HotkeyBackendState::Native(NativeHotkeyBackend::new())
 }
 
 struct NativeHotkeyBackend {
@@ -220,9 +260,10 @@ fn parse_native_hotkey(hotkey: &str) -> Result<HotKey, HotKeyParseError> {
 #[derive(Debug, Clone, Hash)]
 enum HotkeyWatcherConfig {
     Native(Vec<NativeHotkeyBinding>),
-    SystemConfigured {
+    Integrated {
         reward_scan: String,
         inventory_scan: String,
+        integration: ShortcutIntegrationHandle,
     },
 }
 
@@ -240,9 +281,10 @@ fn hotkey_event_subscription(config: &HotkeyWatcherConfig) -> impl Stream<Item =
             HotkeyWatcherConfig::Native(bindings) => {
                 watch_native_hotkeys(bindings, sender).await;
             }
-            HotkeyWatcherConfig::SystemConfigured {
+            HotkeyWatcherConfig::Integrated {
                 reward_scan,
                 inventory_scan,
+                integration,
             } => {
                 let settings = AppSettings {
                     hotkeys: info_core::HotkeySettings {
@@ -251,9 +293,7 @@ fn hotkey_event_subscription(config: &HotkeyWatcherConfig) -> impl Stream<Item =
                     },
                 };
 
-                platform::system_shortcuts()
-                    .watch_shortcuts(settings, sender)
-                    .await;
+                integration.watch_shortcuts(settings, sender).await;
             }
         }
     })

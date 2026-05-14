@@ -1,6 +1,7 @@
+use hotkeys::HotkeyEvent;
 use info_core::{AppSettings, ScanKind};
 
-use crate::{hotkeys::HotkeyEvent, scan::ScanReport};
+use crate::scan::ScanReport;
 
 use super::state::AppTab;
 

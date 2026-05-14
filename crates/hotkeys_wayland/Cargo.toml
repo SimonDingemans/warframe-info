@@ -1,0 +1,11 @@
+[package]
+name = "hotkeys_wayland"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+ashpd.workspace = true
+futures.workspace = true
+futures-util.workspace = true
+hotkeys = { path = "../hotkeys" }
+info_core = { path = "../info_core" }
