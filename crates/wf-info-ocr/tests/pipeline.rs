@@ -2,16 +2,15 @@ use rstest::rstest;
 use std::{
     error::Error,
     path::{Path, PathBuf},
-    sync::{Mutex, Once},
+    sync::Mutex,
 };
 use wf_info_ocr::{
     layouts::{InventoryGridLayout, RewardScreenLayout},
-    ocr::PaddleOcrEngine,
+    load_ocr_engine,
     pipeline::ItemPipeline,
     text::WarframeTextNormalizer,
 };
 
-static ORT_INIT: Once = Once::new();
 static PIPELINE_TEST_LOCK: Mutex<()> = Mutex::new(());
 
 #[rstest(
@@ -115,33 +114,8 @@ fn reward_screen_pipeline_extracts_expected_items(
     Ok(())
 }
 
-fn load_ocr_engine() -> Result<PaddleOcrEngine, Box<dyn Error>> {
-    ORT_INIT.call_once(|| {
-        ort::init().with_name("WarframeOCRTests").commit();
-    });
-
-    let detector_model_path = ocr_asset_path("det_model.onnx");
-    let recognizer_model_path = ocr_asset_path("rec_model.onnx");
-
-    PaddleOcrEngine::from_files(
-        path_as_str(&detector_model_path)?,
-        path_as_str(&recognizer_model_path)?,
-    )
-}
-
 fn fixture_path(relative_path: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
         .join(relative_path)
-}
-
-fn ocr_asset_path(relative_path: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("assets/ocr")
-        .join(relative_path)
-}
-
-fn path_as_str(path: &Path) -> Result<&str, Box<dyn Error>> {
-    path.to_str()
-        .ok_or_else(|| format!("Path is not valid UTF-8: {}", path.display()).into())
 }

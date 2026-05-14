@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/wf-info-capture",
+    "crates/wf-info-crop",
     "crates/wf-info-ocr",
 ]
 

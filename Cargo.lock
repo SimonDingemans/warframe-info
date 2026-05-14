@@ -2066,6 +2066,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "wf-info-crop"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "thiserror",
+]
+
+[[package]]
 name = "wf-info-ocr"
 version = "0.1.0"
 dependencies = [
