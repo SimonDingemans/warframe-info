@@ -12,6 +12,9 @@ use super::{message::Message, state::SettingsApp};
 impl SettingsApp {
     pub(super) fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::TabSelected(tab) => {
+                self.active_tab = tab;
+            }
             Message::RewardScanChanged(value) => {
                 self.reward_scan = value;
                 self.is_dirty = true;

@@ -7,18 +7,41 @@ use wf_info_core::ScanOutput;
 
 use crate::{hotkeys, scan};
 
-use super::{message::Message, state::SettingsApp};
+use super::{
+    message::Message,
+    state::{AppTab, SettingsApp},
+};
 
 impl SettingsApp {
     pub(super) fn view(&self) -> Element<'_, Message> {
         let title = column![
             text("Warframe Info").size(30),
-            text(self.settings_path.display().to_string()).size(14),
+            text(status_text(self)).size(14),
         ]
         .spacing(4);
 
+        let tabs = row![
+            tab_button("Scan", AppTab::Scan, self.active_tab),
+            tab_button("Settings", AppTab::Settings, self.active_tab),
+        ]
+        .spacing(10);
+
+        let content = match self.active_tab {
+            AppTab::Settings => self.settings_tab(),
+            AppTab::Scan => self.scan_tab(),
+        };
+
+        container(column![title, tabs, rule::horizontal(1), content].spacing(18))
+            .padding(24)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+    }
+
+    fn settings_tab(&self) -> Element<'_, Message> {
         let hotkeys = column![
             text("Hotkeys").size(22),
+            text(self.settings_path.display().to_string()).size(14),
             labeled_input(
                 "Reward scan",
                 "Ctrl+Shift+R",
@@ -58,6 +81,12 @@ impl SettingsApp {
             );
         }
 
+        column![hotkeys, actions, text(&self.hotkey_status).size(14)]
+            .spacing(18)
+            .into()
+    }
+
+    fn scan_tab(&self) -> Element<'_, Message> {
         let reward_scan_button = if self.is_scanning {
             button("Reward Scan").padding([8, 14])
         } else {
@@ -84,30 +113,29 @@ impl SettingsApp {
 
         let results = scan_results(self.last_scan.as_ref());
 
-        let status = if self.is_dirty {
-            format!("{} - not saved", self.status)
-        } else {
-            self.status.clone()
-        };
+        column![pipeline_actions, results].spacing(18).into()
+    }
+}
 
-        container(
-            column![
-                title,
-                rule::horizontal(1),
-                hotkeys,
-                actions,
-                rule::horizontal(1),
-                pipeline_actions,
-                text(status).size(14),
-                text(&self.hotkey_status).size(14),
-                results,
-            ]
-            .spacing(18),
-        )
-        .padding(24)
-        .width(Length::Fill)
-        .height(Length::Fill)
+fn tab_button(label: &str, tab: AppTab, active_tab: AppTab) -> Element<'_, Message> {
+    let style = if tab == active_tab {
+        iced::widget::button::primary
+    } else {
+        iced::widget::button::secondary
+    };
+
+    button(label)
+        .on_press(Message::TabSelected(tab))
+        .padding([8, 14])
+        .style(style)
         .into()
+}
+
+fn status_text(app: &SettingsApp) -> String {
+    if app.is_dirty {
+        format!("{} - not saved", app.status)
+    } else {
+        app.status.clone()
     }
 }
 

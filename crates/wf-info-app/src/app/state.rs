@@ -7,9 +7,16 @@ use crate::hotkeys::HotkeyBindings;
 
 use super::message::Message;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum AppTab {
+    Settings,
+    Scan,
+}
+
 pub(super) struct SettingsApp {
     pub(super) settings_path: PathBuf,
     pub(super) active_settings: AppSettings,
+    pub(super) active_tab: AppTab,
     pub(super) reward_scan: String,
     pub(super) inventory_scan: String,
     pub(super) is_dirty: bool,
@@ -29,6 +36,7 @@ impl SettingsApp {
                 Self {
                     settings_path,
                     active_settings: settings.clone(),
+                    active_tab: AppTab::Scan,
                     reward_scan: settings.hotkeys.reward_scan,
                     inventory_scan: settings.hotkeys.inventory_scan,
                     is_dirty: false,
@@ -46,6 +54,7 @@ impl SettingsApp {
                 Self {
                     settings_path,
                     active_settings: settings.clone(),
+                    active_tab: AppTab::Scan,
                     reward_scan: settings.hotkeys.reward_scan,
                     inventory_scan: settings.hotkeys.inventory_scan,
                     is_dirty: true,
