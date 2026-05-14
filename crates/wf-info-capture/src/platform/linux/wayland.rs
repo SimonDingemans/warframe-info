@@ -15,18 +15,22 @@ impl LinuxWaylandCapture {
 
 impl ScreenCapture for LinuxWaylandCapture {
     fn capture_screen(&self) -> CaptureFuture<'_> {
-        Box::pin(async { capture_screen_with_portal().await })
+        Box::pin(async { capture_warframe_window_with_portal().await })
     }
 }
 
-async fn capture_screen_with_portal() -> CaptureResult<Screenshot> {
+async fn capture_warframe_window_with_portal() -> CaptureResult<Screenshot> {
     if std::env::var_os("WAYLAND_DISPLAY").is_none() {
         return Err(CaptureError::NotWaylandSession);
     }
 
+    // Wayland does not allow clients to silently capture another client's
+    // window. The portal's interactive mode delegates that choice to the
+    // compositor so the user can select the Warframe window instead of all
+    // screens.
     let response = PortalScreenshot::request()
-        .interactive(false)
-        .modal(false)
+        .interactive(true)
+        .modal(true)
         .send()
         .await?
         .response()?;
