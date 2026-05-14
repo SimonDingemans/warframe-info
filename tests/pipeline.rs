@@ -17,7 +17,7 @@ static PIPELINE_TEST_LOCK: Mutex<()> = Mutex::new(());
 #[rstest(
     image_path, expected_items,
     case::prime_parts(
-        "image.png",
+        "inventory/prime_parts.png",
         &[
             "Acceltra Prime Receiver",
             "Ballistica Prime Receiver",
@@ -40,7 +40,7 @@ static PIPELINE_TEST_LOCK: Mutex<()> = Mutex::new(());
         ]
     ),
     case::arcanes(
-        "image2.png",
+        "inventory/arcanes.png",
         &[
             "Arcane Aegis",
             "Arcane Battery",
@@ -86,7 +86,7 @@ fn inventory_pipeline_extracts_expected_items(
 #[rstest(
     image_path, expected_items,
     case::four_rewards(
-        "RewardScreen_1.png",
+        "reward_screen/four_rewards.png",
         &[
             "Sarofang Prime Handle",
             "Forma Blueprint",
@@ -120,8 +120,8 @@ fn load_ocr_engine() -> Result<PaddleOcrEngine, Box<dyn Error>> {
         ort::init().with_name("WarframeOCRTests").commit();
     });
 
-    let detector_model_path = fixture_path("det_model.onnx");
-    let recognizer_model_path = fixture_path("rec_model.onnx");
+    let detector_model_path = ocr_asset_path("det_model.onnx");
+    let recognizer_model_path = ocr_asset_path("rec_model.onnx");
 
     PaddleOcrEngine::from_files(
         path_as_str(&detector_model_path)?,
@@ -130,7 +130,15 @@ fn load_ocr_engine() -> Result<PaddleOcrEngine, Box<dyn Error>> {
 }
 
 fn fixture_path(relative_path: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join(relative_path)
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(relative_path)
+}
+
+fn ocr_asset_path(relative_path: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("assets/ocr")
+        .join(relative_path)
 }
 
 fn path_as_str(path: &Path) -> Result<&str, Box<dyn Error>> {
