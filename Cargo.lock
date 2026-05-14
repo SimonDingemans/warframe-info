@@ -5289,6 +5289,7 @@ dependencies = [
  "ashpd",
  "iced",
  "iced_layershell",
+ "image 0.24.9",
  "tokio",
  "wayland-client",
  "wayland-protocols",

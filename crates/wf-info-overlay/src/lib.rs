@@ -1,5 +1,5 @@
 use iced::widget::image::Handle as ImageHandle;
-use iced::widget::{button, column, container, image, row, rule, text};
+use iced::widget::{button, column, container, image as iced_image, row, rule, text};
 use iced::{time, Color, Element, Font, Length, Pixels, Renderer, Subscription, Task, Theme};
 use iced_layershell::application;
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
@@ -23,8 +23,8 @@ const REWARD_CARD_SPACING: u32 = 10;
 const REWARD_OVERLAY_PADDING: u32 = 18;
 const REWARD_OVERLAY_Y_RATIO: f32 = 0.62;
 const DEFAULT_OVERLAY_DURATION: Duration = Duration::from_secs(12);
-const PLATINUM_ICON: &[u8] = include_bytes!("../assets/src/PlatinumLarge.png");
-const DUCAT_ICON: &[u8] = include_bytes!("../assets/src/OrokinDucats.png");
+const PLATINUM_ICON_BYTES: &[u8] = include_bytes!("../assets/src/PlatinumLarge.png");
+const DUCAT_ICON_BYTES: &[u8] = include_bytes!("../assets/src/OrokinDucats.png");
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RewardOverlayEntry {
@@ -105,6 +105,7 @@ pub fn run(overlay: RewardOverlay) -> iced_layershell::Result {
     application(
         move || RewardOverlayApp {
             overlay: overlay.clone(),
+            assets: RewardOverlayAssets::load(),
         },
         namespace,
         update,
@@ -178,6 +179,63 @@ fn reward_overlay_surface_size(reward_count: usize, monitor_width: u32) -> (u32,
 
 struct RewardOverlayApp {
     overlay: RewardOverlay,
+    assets: RewardOverlayAssets,
+}
+
+#[derive(Clone, Debug)]
+struct RewardOverlayAssets {
+    platinum_icon: ImageHandle,
+    ducat_icon: ImageHandle,
+}
+
+impl RewardOverlayAssets {
+    fn load() -> Self {
+        Self {
+            platinum_icon: reward_icon_handle(PLATINUM_ICON_BYTES, "PlatinumLarge.png"),
+            ducat_icon: reward_icon_handle(DUCAT_ICON_BYTES, "OrokinDucats.png"),
+        }
+    }
+}
+
+fn reward_icon_handle(bytes: &[u8], asset_name: &str) -> ImageHandle {
+    let icon = decode_reward_icon(bytes, asset_name);
+    let (width, height) = icon.dimensions();
+
+    ImageHandle::from_rgba(width, height, icon.into_raw())
+}
+
+fn decode_reward_icon(bytes: &[u8], asset_name: &str) -> image::RgbaImage {
+    let icon = image::load_from_memory(bytes)
+        .unwrap_or_else(|error| panic!("failed to decode overlay asset {asset_name}: {error}"))
+        .into_rgba8();
+
+    trim_transparent_padding(icon)
+}
+
+fn trim_transparent_padding(icon: image::RgbaImage) -> image::RgbaImage {
+    let (width, height) = icon.dimensions();
+    let mut bounds = None::<(u32, u32, u32, u32)>;
+
+    for y in 0..height {
+        for x in 0..width {
+            if icon.get_pixel(x, y)[3] == 0 {
+                continue;
+            }
+
+            bounds = Some(match bounds {
+                Some((min_x, min_y, max_x, max_y)) => {
+                    (min_x.min(x), min_y.min(y), max_x.max(x), max_y.max(y))
+                }
+                None => (x, y, x, y),
+            });
+        }
+    }
+
+    let Some((min_x, min_y, max_x, max_y)) = bounds else {
+        return icon;
+    };
+
+    image::imageops::crop_imm(&icon, min_x, min_y, max_x - min_x + 1, max_y - min_y + 1).to_image()
 }
 
 #[to_layer_message]
@@ -203,7 +261,7 @@ fn subscription(app: &RewardOverlayApp) -> Subscription<Message> {
 }
 
 fn view(app: &RewardOverlayApp) -> Element<'_, Message, Theme, Renderer> {
-    reward_overlay_view(&app.overlay.rewards)
+    reward_overlay_view(&app.overlay.rewards, &app.assets)
 }
 
 fn style(_app: &RewardOverlayApp, _theme: &Theme) -> iced::theme::Style {
@@ -213,7 +271,10 @@ fn style(_app: &RewardOverlayApp, _theme: &Theme) -> iced::theme::Style {
     }
 }
 
-fn reward_overlay_view(rewards: &[RewardOverlayEntry]) -> Element<'_, Message, Theme, Renderer> {
+fn reward_overlay_view<'a>(
+    rewards: &'a [RewardOverlayEntry],
+    assets: &'a RewardOverlayAssets,
+) -> Element<'a, Message, Theme, Renderer> {
     let best_platinum = best_platinum_reward_index(rewards);
     let reward_cards =
         rewards
@@ -223,6 +284,7 @@ fn reward_overlay_view(rewards: &[RewardOverlayEntry]) -> Element<'_, Message, T
                 row.push(reward_card(
                     reward,
                     reward_is_best_platinum(index, reward, best_platinum),
+                    assets,
                 ))
             });
 
@@ -243,14 +305,15 @@ fn reward_overlay_view(rewards: &[RewardOverlayEntry]) -> Element<'_, Message, T
         .into()
 }
 
-fn reward_card(
-    reward: &RewardOverlayEntry,
+fn reward_card<'a>(
+    reward: &'a RewardOverlayEntry,
     is_best_platinum: bool,
-) -> Element<'_, Message, Theme, Renderer> {
+    assets: &'a RewardOverlayAssets,
+) -> Element<'a, Message, Theme, Renderer> {
     let details = column![
         text(&reward.name).size(16).width(Length::Fill),
-        reward_value_with_icon(reward.platinum, ImageHandle::from_bytes(PLATINUM_ICON)),
-        reward_value_with_icon(reward.ducats, ImageHandle::from_bytes(DUCAT_ICON)),
+        reward_value_with_icon(reward.platinum, assets.platinum_icon.clone()),
+        reward_value_with_icon(reward.ducats, assets.ducat_icon.clone()),
         reward_detail("Sold last 48 hours", reward.volume),
     ]
     .spacing(4);
@@ -307,7 +370,9 @@ fn reward_value_with_icon(
     icon: ImageHandle,
 ) -> Element<'static, Message, Theme, Renderer> {
     row![
-        image(icon).width(18).height(18),
+        iced_image(icon)
+            .width(Length::Fixed(18.0))
+            .height(Length::Fixed(18.0)),
         text(
             value
                 .map(|value| value.to_string())
@@ -376,10 +441,10 @@ fn monitor_info_view(lines: &[String]) -> Element<'_, Message, Theme, Renderer> 
 #[cfg(test)]
 mod tests {
     use super::{
-        best_platinum_reward_index, reward_is_best_platinum, reward_overlay_placement,
-        reward_overlay_surface_size, RewardHighlight, RewardOverlayEntry, DEFAULT_MONITOR_HEIGHT,
-        DEFAULT_MONITOR_WIDTH, REWARD_CARD_HEIGHT, REWARD_CARD_SPACING, REWARD_CARD_WIDTH,
-        REWARD_OVERLAY_PADDING,
+        best_platinum_reward_index, decode_reward_icon, reward_is_best_platinum,
+        reward_overlay_placement, reward_overlay_surface_size, RewardHighlight, RewardOverlayEntry,
+        DEFAULT_MONITOR_HEIGHT, DEFAULT_MONITOR_WIDTH, DUCAT_ICON_BYTES, PLATINUM_ICON_BYTES,
+        REWARD_CARD_HEIGHT, REWARD_CARD_SPACING, REWARD_CARD_WIDTH, REWARD_OVERLAY_PADDING,
     };
 
     #[test]
@@ -443,5 +508,14 @@ mod tests {
                 ((DEFAULT_MONITOR_WIDTH - expected_size.0) / 2) as i32
             )
         );
+    }
+
+    #[test]
+    fn reward_icon_assets_decode_and_trim_transparent_padding() {
+        let platinum_icon = decode_reward_icon(PLATINUM_ICON_BYTES, "PlatinumLarge.png");
+        let ducat_icon = decode_reward_icon(DUCAT_ICON_BYTES, "OrokinDucats.png");
+
+        assert_eq!(platinum_icon.dimensions(), (291, 285));
+        assert_eq!(ducat_icon.dimensions(), (337, 430));
     }
 }
