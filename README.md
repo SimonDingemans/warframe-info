@@ -8,7 +8,7 @@ The current workspace contains focused library crates for capture, cropping, and
 
 The names below are placeholders and can change once the shape of the app settles.
 
-### `wf-info-app`
+### `app`
 
 The normal desktop application process.
 
@@ -25,10 +25,10 @@ This crate should avoid platform-specific overlay rendering code. It can depend 
 Initial commands:
 
 ```sh
-cargo run -p wf-info-app
-cargo run -p wf-info-app -- settings show
-cargo run -p wf-info-app -- settings set-reward-hotkey "Ctrl+Shift+R"
-cargo run -p wf-info-app -- settings set-inventory-hotkey "Ctrl+Shift+I"
+cargo run -p app
+cargo run -p app -- settings show
+cargo run -p app -- settings set-reward-hotkey "Ctrl+Shift+R"
+cargo run -p app -- settings set-inventory-hotkey "Ctrl+Shift+I"
 ```
 
 Scans use the `wf-market` crate for live warframe.market data. The item index is
@@ -38,10 +38,10 @@ treated as fresh for 1 hour. Clear them from the app with `Clear Market Cache`,
 or from the command line:
 
 ```sh
-cargo run -p wf-info-app -- cache clear
+cargo run -p app -- cache clear
 ```
 
-Running `wf-info-app` opens the initial `iced` settings UI. The UI can save hotkey settings and manually run reward or inventory scans through the current capture, crop, and OCR pipeline. The command-line settings commands are kept for scripting and quick checks.
+Running `app` opens the initial `iced` settings UI. The UI can save hotkey settings and manually run reward or inventory scans through the current capture, crop, and OCR pipeline. The command-line settings commands are kept for scripting and quick checks.
 
 Settings are saved as TOML in the platform config directory by default:
 
@@ -60,14 +60,14 @@ Global hotkeys are hidden behind a small app-side backend abstraction. The UI su
 
 On Wayland, the app must register shortcuts with the desktop environment before it can receive activations. The UI exposes a `Configure Hotkeys` action that saves the current TOML settings and binds the shortcut IDs through the GlobalShortcuts portal. Portal version 2 can also open the desktop shortcut configuration flow directly. Portal version 1 can register/list shortcuts, but if the desktop reports them as `unassigned`, assign the listed actions manually in the desktop shortcut settings. On KDE Plasma, the app tries to open the Shortcuts settings page automatically.
 
-### `wf-info-overlay`
+### `overlay`
 
 The overlay process.
 
 Responsibilities:
 
 - Render the always-on-top overlay UI.
-- Receive display commands and data from `wf-info-app`.
+- Receive display commands and data from `app`.
 - Handle overlay-specific input behavior, such as click-through or focused interaction modes.
 - Hide platform differences behind overlay launch/runtime modules.
 
@@ -77,7 +77,7 @@ The overlay implementation is expected to be platform-specific at the windowing 
 - Windows: use `iced` normal windows with transparent, borderless, always-on-top settings, plus Win32 window styles where needed.
 - Other platforms: add backends as the supported behavior becomes clear.
 
-### `wf-info-core`
+### `info_core`
 
 Shared logic used by both processes.
 
@@ -88,41 +88,41 @@ Responsibilities:
 - Provide common configuration models and serialization types.
 - Keep IPC payloads stable and explicit.
 
-This crate should not own desktop windows, hotkeys, or OS capture handles. Those remain in app or platform crates so `wf-info-core` stays portable and easy to test.
+This crate should not own desktop windows, hotkeys, or OS capture handles. Those remain in app or platform crates so `info_core` stays portable and easy to test.
 
 ## Existing Library Crates
 
 These crates remain the low-level building blocks:
 
-- `wf-info-capture`: captures the Warframe window or screen.
-- `wf-info-crop`: extracts Warframe UI regions from screenshots.
-- `wf-info-ocr`: reads item text from cropped UI images.
+- `capture`: captures the Warframe window or screen.
+- `crop`: extracts Warframe UI regions from screenshots.
+- `ocr`: reads item text from cropped UI images.
 
 The intended dependency direction is:
 
 ```text
-wf-info-app
-  -> wf-info-core
-  -> wf-info-capture
-  -> wf-info-crop
-  -> wf-info-ocr
+app
+  -> info_core
+  -> capture
+  -> crop
+  -> ocr
 
-wf-info-overlay
-  -> wf-info-core
+overlay
+  -> info_core
 ```
 
-In this sketch, the arrows from `wf-info-app` are parallel dependencies. The exact graph may change. For example, `wf-info-core` may depend on crop/OCR if it owns full pipeline coordination, while capture may stay app-owned because it touches desktop sessions and OS handles.
+In this sketch, the arrows from `app` are parallel dependencies. The exact graph may change. For example, `info_core` may depend on crop/OCR if it owns full pipeline coordination, while capture may stay app-owned because it touches desktop sessions and OS handles.
 
 ## Process Model
 
 ```text
 Hotkey
-  -> wf-info-app
+  -> app
   -> capture screenshot
   -> crop relevant UI region
   -> run OCR/item pipeline
   -> send result over IPC
-  -> wf-info-overlay
+  -> overlay
   -> render result
 ```
 
@@ -136,6 +136,6 @@ Keeping the app and overlay in separate processes gives each side a clearer job:
 
 - Final crate names.
 - IPC transport between app and overlay.
-- Whether `wf-info-core` owns full pipeline execution or only shared types and coordination helpers.
-- How much overlay state should live in `wf-info-core` versus `wf-info-overlay`.
+- Whether `info_core` owns full pipeline execution or only shared types and coordination helpers.
+- How much overlay state should live in `info_core` versus `overlay`.
 - Packaging strategy for running both processes together on each platform.

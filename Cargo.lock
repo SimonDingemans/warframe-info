@@ -136,6 +136,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
+name = "app"
+version = "0.1.0"
+dependencies = [
+ "ashpd",
+ "capture",
+ "futures-util",
+ "global-hotkey",
+ "iced",
+ "info_core",
+ "overlay",
+ "serde",
+ "serde_json",
+ "tokio",
+ "wf-market",
+]
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -632,6 +649,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "capture"
+version = "0.1.0"
+dependencies = [
+ "ashpd",
+ "image 0.24.9",
+ "pipewire",
+ "thiserror 2.0.18",
+ "tokio",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.62"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -908,6 +936,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "crop"
+version = "0.1.0"
+dependencies = [
+ "image 0.24.9",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -2393,6 +2429,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "info_core"
+version = "0.1.0"
+dependencies = [
+ "crop",
+ "image 0.24.9",
+ "ocr",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.18",
+ "toml",
+]
+
+[[package]]
 name = "interpolate_name"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3567,6 +3617,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "ocr"
+version = "0.1.0"
+dependencies = [
+ "image 0.24.9",
+ "imageproc",
+ "ndarray 0.15.6",
+ "ort",
+ "regex",
+ "rstest",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3666,6 +3728,19 @@ dependencies = [
  "hmac-sha256",
  "lzma-rust2",
  "ureq",
+]
+
+[[package]]
+name = "overlay"
+version = "0.1.0"
+dependencies = [
+ "ashpd",
+ "iced",
+ "iced_layershell",
+ "image 0.24.9",
+ "tokio",
+ "wayland-client",
+ "wayland-protocols",
 ]
 
 [[package]]
@@ -5964,81 +6039,6 @@ name = "weezl"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a28ac98ddc8b9274cb41bb4d9d4d5c425b6020c50c46f25559911905610b4a88"
-
-[[package]]
-name = "wf-info-app"
-version = "0.1.0"
-dependencies = [
- "ashpd",
- "futures-util",
- "global-hotkey",
- "iced",
- "serde",
- "serde_json",
- "tokio",
- "wf-info-capture",
- "wf-info-core",
- "wf-info-overlay",
- "wf-market",
-]
-
-[[package]]
-name = "wf-info-capture"
-version = "0.1.0"
-dependencies = [
- "ashpd",
- "image 0.24.9",
- "pipewire",
- "thiserror 2.0.18",
- "tokio",
-]
-
-[[package]]
-name = "wf-info-core"
-version = "0.1.0"
-dependencies = [
- "image 0.24.9",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.18",
- "toml",
- "wf-info-crop",
- "wf-info-ocr",
-]
-
-[[package]]
-name = "wf-info-crop"
-version = "0.1.0"
-dependencies = [
- "image 0.24.9",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "wf-info-ocr"
-version = "0.1.0"
-dependencies = [
- "image 0.24.9",
- "imageproc",
- "ndarray 0.15.6",
- "ort",
- "regex",
- "rstest",
-]
-
-[[package]]
-name = "wf-info-overlay"
-version = "0.1.0"
-dependencies = [
- "ashpd",
- "iced",
- "iced_layershell",
- "image 0.24.9",
- "tokio",
- "wayland-client",
- "wayland-protocols",
-]
 
 [[package]]
 name = "wf-market"

@@ -1,12 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/wf-info-app",
-    "crates/wf-info-capture",
-    "crates/wf-info-core",
-    "crates/wf-info-crop",
-    "crates/wf-info-overlay",
-    "crates/wf-info-ocr",
+    "crates/app",
+    "crates/capture",
+    "crates/info_core",
+    "crates/crop",
+    "crates/overlay",
+    "crates/ocr",
 ]
 
 [workspace.package]

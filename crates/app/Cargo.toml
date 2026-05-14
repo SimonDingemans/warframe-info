@@ -1,0 +1,19 @@
+[package]
+name = "app"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+global-hotkey.workspace = true
+iced.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+capture = { path = "../capture" }
+info_core = { path = "../info_core" }
+overlay = { path = "../overlay" }
+wf-market.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd.workspace = true
+futures-util.workspace = true

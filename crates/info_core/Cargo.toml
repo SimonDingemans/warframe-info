@@ -1,0 +1,16 @@
+[package]
+name = "info_core"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+image.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+toml.workspace = true
+crop = { path = "../crop" }
+ocr = { path = "../ocr" }
+
+[dev-dependencies]
+tempfile.workspace = true
