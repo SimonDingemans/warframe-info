@@ -82,6 +82,32 @@ fn inventory_pipeline_extracts_expected_items(
     Ok(())
 }
 
+#[test]
+fn inventory_pipeline_keeps_stacked_arcane_name_in_reading_order() -> Result<(), Box<dyn Error>> {
+    let _guard = PIPELINE_TEST_LOCK
+        .lock()
+        .expect("pipeline test lock poisoned");
+    let pipeline = ItemPipeline::new(WarframeTextNormalizer).with_min_text_score(0.75);
+    let mut ocr = load_ocr_engine()?;
+    let layout = InventoryGridLayout::default();
+    let image = image::open(example_fixture_path(
+        "inventory/screenshot_1920x1080_cropped.png",
+    ))?;
+
+    let output = pipeline.run(&mut ocr, &image, &layout)?;
+
+    assert!(output
+        .items
+        .iter()
+        .any(|item| item == "Arcane Concentration"));
+    assert!(!output
+        .items
+        .iter()
+        .any(|item| item == "Concentration Arcane"));
+
+    Ok(())
+}
+
 #[rstest(
     image_path, expected_items,
     case::four_rewards(
@@ -117,5 +143,11 @@ fn reward_screen_pipeline_extracts_expected_items(
 fn fixture_path(relative_path: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
+        .join(relative_path)
+}
+
+fn example_fixture_path(relative_path: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("examples/fixtures")
         .join(relative_path)
 }
