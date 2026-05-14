@@ -1,49 +1,54 @@
 # warframe-info
 
-`warframe-info` is being built as a cross-platform Warframe companion app.
+`warframe-info` is a cross-platform Warframe companion app in early development.
+It captures the game screen, crops known Warframe UI regions, runs OCR over the
+cropped image, matches recognized text against Warframe Market items, and shows
+reward information in an overlay where the platform supports it.
 
-The current workspace contains focused library crates for capture, cropping, and OCR. The next step is to introduce application-level crates that compose those libraries into a normal desktop app and a separate overlay process.
+The current implementation is most complete on Linux Wayland. Other platforms
+keep the same crate boundaries, but several backends are still placeholders.
 
-## Planned Crates
+## Workspace
 
-The names below are placeholders and can change once the shape of the app settles.
+- `app`: the desktop UI and scan orchestrator.
+- `info_core`: shared settings, item matching, and scan pipeline glue.
+- `capture`: backend-neutral screen capture traits and data types.
+- `capture_wayland`: Wayland screencast portal and PipeWire capture backend.
+- `crop`: Warframe reward and inventory crop logic.
+- `ocr`: ONNX OCR engine, text normalization, and screen layouts.
+- `hotkeys`: backend-neutral global shortcut wiring plus the native backend.
+- `hotkeys_wayland`: XDG desktop portal global shortcut integration.
+- `overlay`: shared reward overlay data types and display backend traits.
+- `overlay_wayland`: Wayland layer-shell reward overlay.
+- `platform_capabilities`: selects the available backend implementations for the
+  current platform.
 
-### `app`
-
-The normal desktop application process.
-
-Responsibilities:
-
-- Own global hotkey registration.
-- Run capture, crop, OCR, and item processing pipelines when a hotkey is pressed.
-- Hold user configuration and app lifecycle state.
-- Start, stop, or reconnect to the overlay process.
-- Send overlay updates through a small IPC boundary.
-
-This crate should avoid platform-specific overlay rendering code. It can depend on platform-specific hotkey and capture backends, but its job is orchestration rather than presentation.
-
-Initial commands:
+## Running the App
 
 ```sh
 cargo run -p app
-cargo run -p app -- settings show
-cargo run -p app -- settings set-reward-hotkey "Ctrl+Shift+R"
-cargo run -p app -- settings set-inventory-hotkey "Ctrl+Shift+I"
 ```
 
-Scans use the `wf-market` crate for live warframe.market data. The item index is
-cached in `${XDG_CACHE_HOME:-~/.cache}/wf-info/wf_market_cache.json`, and top
-sell prices are cached per item in `wf_market_price_cache.json`. Both caches are
-treated as fresh for 1 hour. Clear them from the app with `Clear Market Cache`,
-or from the command line:
+The app opens an `iced` UI with scan and settings tabs. From the UI you can:
 
-```sh
-cargo run -p app -- cache clear
-```
+- Run reward or inventory scans.
+- Save reward and inventory hotkey settings.
+- Configure Wayland desktop shortcuts when the portal supports it.
+- Reset the Wayland screen capture restore token.
+- Clear the Warframe Market cache.
+- Spawn a test reward overlay.
 
-Running `app` opens the initial `iced` settings UI. The UI can save hotkey settings and manually run reward or inventory scans through the current capture, crop, and OCR pipeline. The command-line settings commands are kept for scripting and quick checks.
+Reward scans also try to show the Wayland reward overlay automatically when
+rewards are found.
 
-Settings are saved as TOML in the platform config directory by default:
+## Settings and Caches
+
+Settings are saved as TOML in the platform config directory:
+
+- Linux: `${XDG_CONFIG_HOME:-~/.config}/warframe-info/settings.toml`
+- Windows: `%APPDATA%/warframe-info/settings.toml`
+
+Default settings:
 
 ```toml
 [hotkeys]
@@ -51,93 +56,56 @@ reward_scan = "Ctrl+Shift+R"
 inventory_scan = "Ctrl+Shift+I"
 ```
 
-Global hotkeys are hidden behind a small app-side backend abstraction. The UI subscribes to backend watcher streams instead of relying on button-driven polling:
+Warframe Market item and price data is cached in
+`${XDG_CACHE_HOME:-~/.cache}/wf-info/`:
 
-- Wayland: uses the XDG desktop portal global shortcuts API through `ashpd`.
-- Windows and other non-Wayland sessions: use the native `global-hotkey` backend for now.
+- `wf_market_cache.json`: item index cache.
+- `wf_market_price_cache.json`: top sell price cache.
 
-`ashpd` talks to desktop portals, so it is the right direction for sandbox-friendly Linux desktops and Wayland. It is not expected to provide a Windows backend; Windows support should stay behind the same abstraction and use a Windows-capable implementation.
+Both caches are treated as fresh for 1 hour. Clear them from the app with
+`Clear Market Cache`, or from the command line:
 
-On Wayland, the app must register shortcuts with the desktop environment before it can receive activations. The UI exposes a `Configure Hotkeys` action that saves the current TOML settings and binds the shortcut IDs through the GlobalShortcuts portal. Portal version 2 can also open the desktop shortcut configuration flow directly. Portal version 1 can register/list shortcuts, but if the desktop reports them as `unassigned`, assign the listed actions manually in the desktop shortcut settings. On KDE Plasma, the app tries to open the Shortcuts settings page automatically.
-
-### `overlay`
-
-The overlay process.
-
-Responsibilities:
-
-- Render the always-on-top overlay UI.
-- Receive display commands and data from `app`.
-- Handle overlay-specific input behavior, such as click-through or focused interaction modes.
-- Hide platform differences behind overlay launch/runtime modules.
-
-The overlay implementation is expected to be platform-specific at the windowing layer:
-
-- Wayland: use `iced` with `iced_layershell` so the overlay can be a real layer-shell surface.
-- Windows: use `iced` normal windows with transparent, borderless, always-on-top settings, plus Win32 window styles where needed.
-- Other platforms: add backends as the supported behavior becomes clear.
-
-### `info_core`
-
-Shared logic used by both processes.
-
-Responsibilities:
-
-- Define shared domain types, pipeline outputs, and overlay messages.
-- Host logic that does not need to know whether it is running in the app or overlay process.
-- Provide common configuration models and serialization types.
-- Keep IPC payloads stable and explicit.
-
-This crate should not own desktop windows, hotkeys, or OS capture handles. Those remain in app or platform crates so `info_core` stays portable and easy to test.
-
-## Existing Library Crates
-
-These crates remain the low-level building blocks:
-
-- `capture`: defines the screen-capture abstraction and shared capture types.
-- `capture_wayland`: captures a selected screen through the Wayland desktop portal and PipeWire.
-- `crop`: extracts Warframe UI regions from screenshots.
-- `ocr`: reads item text from cropped UI images.
-
-The intended dependency direction is:
-
-```text
-app
-  -> info_core
-  -> capture
-  -> capture_wayland
-  -> crop
-  -> ocr
-
-overlay
-  -> info_core
+```sh
+cargo run -p app -- cache clear
 ```
 
-In this sketch, the arrows from `app` are parallel dependencies. The exact graph may change. For example, `info_core` may depend on crop/OCR if it owns full pipeline coordination, while concrete capture backends may stay app-owned because they touch desktop sessions and OS handles.
+Wayland screencast restore tokens are stored separately in
+`${XDG_CACHE_HOME:-~/.cache}/warframe-info/wayland-monitor-screencast-token`.
 
-## Process Model
+## Platform Notes
 
-```text
-Hotkey
-  -> app
-  -> capture screenshot
-  -> crop relevant UI region
-  -> run OCR/item pipeline
-  -> send result over IPC
-  -> overlay
-  -> render result
+On Wayland, screen capture and display selection use the XDG desktop screencast
+portal. Global shortcuts use the XDG desktop portal global shortcuts API. The
+first capture or shortcut configuration may open a desktop permission dialog.
+
+Portal version 2 can open the desktop shortcut configuration flow directly.
+Portal version 1 can register and list shortcuts, but if the desktop reports
+them as `unassigned`, assign the listed actions manually in the desktop shortcut
+settings. On KDE Plasma, the app tries to open the Shortcuts settings page.
+
+On non-Wayland Linux sessions, capture and overlay support currently report that
+Wayland is required. On non-Linux targets, the native hotkey backend is used, but
+screen capture and overlays are not implemented yet.
+
+## Development
+
+Run the full workspace tests:
+
+```sh
+cargo test --workspace
 ```
 
-Keeping the app and overlay in separate processes gives each side a clearer job:
+Run examples for the lower-level crates:
 
-- The app can keep running even if the overlay backend has to restart.
-- The overlay can use platform-specific windowing APIs without leaking those choices into the pipeline code.
-- Shared data contracts can be tested without requiring a desktop session.
+```sh
+cargo run -p crop --example crop_inventory
+cargo run -p crop --example crop_reward_screen
+cargo run -p ocr --example ocr_inventory
+cargo run -p ocr --example ocr_reward_screen
+cargo run -p capture_wayland --example capture
+cargo run -p overlay_wayland --example reward_overlay
+```
 
-## Open Decisions
-
-- Final crate names.
-- IPC transport between app and overlay.
-- Whether `info_core` owns full pipeline execution or only shared types and coordination helpers.
-- How much overlay state should live in `info_core` versus `overlay`.
-- Packaging strategy for running both processes together on each platform.
+The dependency direction is intentionally layered: `app` composes platform
+capabilities, `info_core` owns shared domain logic, and platform-specific crates
+hide desktop APIs behind small traits.

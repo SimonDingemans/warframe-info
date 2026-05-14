@@ -9,6 +9,7 @@ It converts resolution-independent ratio rectangles into pixel crops, then retur
 - Crop the inventory item grid from a full screenshot.
 - Crop the reward card strip from a reward screen.
 - Define custom crop rectangles with `RatioRect`.
+- Return source size, crop rectangle, and crop kind metadata.
 - Use the `ScreenCrop` trait for shared crop behavior.
 
 ## Usage

@@ -11,6 +11,7 @@ It wraps ONNX OCR models with `ort`, detects text bounds, recognizes text, norma
 - Filter low-confidence OCR results.
 - Normalize item text with `WarframeTextNormalizer`.
 - Group text into inventory grid items or reward screen items.
+- Sort detected text into stable reading order before item grouping.
 
 ## Usage
 
