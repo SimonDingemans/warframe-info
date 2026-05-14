@@ -8,6 +8,23 @@ reward information in an overlay where the platform supports it.
 The current implementation is most complete on Linux Wayland. Other platforms
 keep the same crate boundaries, but several backends are still placeholders.
 
+## Related Projects
+
+`warframe-info` is based on ideas and workflows already explored by existing
+Warframe companion tools:
+
+- [WFCD/WFinfo](https://github.com/WFCD/WFinfo): a fissure companion app for
+  Warframe that screenshots the game, crops reward text, runs OCR, looks up
+  Platinum and Ducat values, and shows the result in an overlay or separate
+  window.
+- [knoellle/wfinfo-ng](https://github.com/knoellle/wfinfo-ng): a Linux-compatible
+  take on WFinfo that detects relic reward screens, captures the game, identifies
+  reward items, and displays Platinum values on X11 and Wayland.
+
+This project follows the same broad problem shape, but is being built as a new
+Rust workspace with small platform backends, an ONNX OCR pipeline, and Wayland
+portal/layer-shell support as the first-class path.
+
 ## Workspace
 
 - `app`: the desktop UI and scan orchestrator.
@@ -105,6 +122,27 @@ cargo run -p ocr --example ocr_reward_screen
 cargo run -p capture_wayland --example capture
 cargo run -p overlay_wayland --example reward_overlay
 ```
+
+## Tools
+
+The [tools](tools) directory contains development-only helper projects. These
+are not part of the runtime app.
+
+`tools/ocr-models` is a Pixi workspace for regenerating the PaddleOCR ONNX model
+files used by the `ocr` crate. It pins a Linux Python environment with
+`paddleocr`, `paddlepaddle`, `paddle2onnx`, and `huggingface-hub`.
+
+```sh
+cd tools/ocr-models
+pixi run download-models
+pixi run export-onnx
+```
+
+The tasks download PaddleOCR detector and recognizer models from Hugging Face,
+then export them to ONNX. The checked-in OCR crate currently loads
+`crates/ocr/assets/ocr/det_model.onnx` and
+`crates/ocr/assets/ocr/rec_model.onnx`; make sure regenerated models are placed
+there before testing or committing them.
 
 The dependency direction is intentionally layered: `app` composes platform
 capabilities, `info_core` owns shared domain logic, and platform-specific crates
