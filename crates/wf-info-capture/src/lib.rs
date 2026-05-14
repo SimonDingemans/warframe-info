@@ -30,19 +30,28 @@ pub enum CaptureError {
     #[error("Linux Wayland capture requires WAYLAND_DISPLAY to be set")]
     NotWaylandSession,
 
-    #[error("screenshot portal request failed")]
+    #[error("portal request failed")]
     Portal(#[from] ashpd::Error),
 
-    #[error("screenshot portal returned an unsupported URI: {uri}")]
-    UnsupportedScreenshotUri { uri: String },
+    #[error("Wayland screencast portal does not offer window capture")]
+    WaylandWindowCaptureUnavailable,
 
-    #[error("screenshot portal returned an invalid file URI: {uri}")]
-    InvalidScreenshotUri { uri: String },
+    #[error("Wayland screencast portal did not return a PipeWire stream")]
+    WaylandScreencastMissingStream,
 
-    #[error("failed to open screenshot image at {}", path.display())]
-    OpenImage {
+    #[error("failed to access Wayland screencast restore token at {}", path.display())]
+    WaylandScreencastToken {
         path: PathBuf,
         #[source]
-        source: image::ImageError,
+        source: std::io::Error,
     },
+
+    #[error("PipeWire screencast failed: {message}")]
+    PipeWire { message: String },
+
+    #[error("PipeWire returned an unsupported video format: {format}")]
+    UnsupportedPipeWireFormat { format: String },
+
+    #[error("PipeWire returned an invalid video frame")]
+    InvalidPipeWireFrame,
 }
