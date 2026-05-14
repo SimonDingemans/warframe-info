@@ -143,7 +143,3 @@ then export them to ONNX. The checked-in OCR crate currently loads
 `crates/ocr/assets/ocr/det_model.onnx` and
 `crates/ocr/assets/ocr/rec_model.onnx`; make sure regenerated models are placed
 there before testing or committing them.
-
-The dependency direction is intentionally layered: `app` composes platform
-capabilities, `info_core` owns shared domain logic, and platform-specific crates
-hide desktop APIs behind small traits.
