@@ -5,8 +5,6 @@ use ort::{
     value::Tensor,
 };
 use std::collections::BTreeMap;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
 
 const TOTAL_COLUMNS: usize = 6;
 const SAFE_TOP_RATIO: f32 = 0.12;
@@ -35,8 +33,7 @@ impl TextBlock {
     }
 }
 
-/// 1. Load the CTC Dictionary
-fn load_dictionary(_dict_path: &str) -> Vec<String> {
+fn load_dictionary() -> Vec<String> {
     let mut dict = vec!["<blank>".to_string()];
     
     // Add 0-9
@@ -60,6 +57,7 @@ fn load_dictionary(_dict_path: &str) -> Vec<String> {
 
 fn clean_text(text: &str) -> Option<String> {
     let mut cleaned = text.trim().to_string();
+
     if let Some(prime_start) = cleaned.find("Prime") {
         if cleaned[..prime_start].chars().all(|c| c.is_ascii_lowercase()) {
             cleaned.replace_range(..prime_start, "");
@@ -74,6 +72,22 @@ fn clean_text(text: &str) -> Option<String> {
             Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
         };
     }
+
+	let mut spaced_text = String::new();
+    let mut chars = cleaned.chars().peekable();
+    
+    while let Some(c) = chars.next() {
+        spaced_text.push(c);
+        
+        // Peek at the next character
+        if let Some(&next_c) = chars.peek() {
+            // If current is lowercase and next is uppercase, add a space
+            if c.is_ascii_lowercase() && next_c.is_ascii_uppercase() {
+                spaced_text.push(' ');
+            }
+        }
+    }
+
     Some(cleaned)
 }
 
@@ -311,7 +325,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let image_height = img.height() as f32;
     
     // For pure ONNX, we use the original color image, not inverted! Paddle Det likes the gold colors.
-    let dictionary = load_dictionary("en_dict.txt");
+    let dictionary = load_dictionary();
 
     println!("Loading ONNX models...");
     let mut det_session = Session::builder()?
