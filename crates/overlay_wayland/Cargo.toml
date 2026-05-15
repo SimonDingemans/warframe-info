@@ -7,8 +7,8 @@ edition.workspace = true
 ashpd.workspace = true
 iced.workspace = true
 iced_layershell.workspace = true
-image.workspace = true
 overlay = { path = "../overlay" }
+ui_core = { path = "../ui_core" }
 wayland-client.workspace = true
 wayland-protocols.workspace = true
 

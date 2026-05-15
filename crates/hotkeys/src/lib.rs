@@ -304,6 +304,7 @@ fn hotkey_event_subscription(config: &HotkeyWatcherConfig) -> impl Stream<Item =
                         reward_scan,
                         inventory_scan,
                     },
+                    overlay: info_core::OverlaySettings::default(),
                 };
 
                 integration.watch_shortcuts(settings, sender).await;

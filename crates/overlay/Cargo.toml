@@ -2,3 +2,6 @@
 name = "overlay"
 version.workspace = true
 edition.workspace = true
+
+[dependencies]
+ui_core = { path = "../ui_core", default-features = false }

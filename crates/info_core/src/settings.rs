@@ -14,6 +14,7 @@ pub type SettingsResult<T> = Result<T, SettingsError>;
 #[serde(default, deny_unknown_fields)]
 pub struct AppSettings {
     pub hotkeys: HotkeySettings,
+    pub overlay: OverlaySettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -28,6 +29,20 @@ impl Default for HotkeySettings {
         Self {
             reward_scan: "Ctrl+Shift+R".to_owned(),
             inventory_scan: "Ctrl+Shift+I".to_owned(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct OverlaySettings {
+    pub show_reward_overlay: bool,
+}
+
+impl Default for OverlaySettings {
+    fn default() -> Self {
+        Self {
+            show_reward_overlay: true,
         }
     }
 }
@@ -141,6 +156,8 @@ mod tests {
         assert!(serialized.contains("[hotkeys]"));
         assert!(serialized.contains("reward_scan = \"Ctrl+Shift+R\""));
         assert!(serialized.contains("inventory_scan = \"Ctrl+Shift+I\""));
+        assert!(serialized.contains("[overlay]"));
+        assert!(serialized.contains("show_reward_overlay = true"));
 
         let parsed: AppSettings = toml::from_str(&serialized).unwrap();
         assert_eq!(parsed, settings);
@@ -156,5 +173,19 @@ mod tests {
         assert_eq!(settings, AppSettings::default());
         assert!(path.exists());
         assert_eq!(AppSettings::load(&path).unwrap(), settings);
+    }
+
+    #[test]
+    fn legacy_settings_without_overlay_use_default_overlay_settings() {
+        let settings: AppSettings = toml::from_str(
+            r#"
+            [hotkeys]
+            reward_scan = "Ctrl+Shift+R"
+            inventory_scan = "Ctrl+Shift+I"
+            "#,
+        )
+        .unwrap();
+
+        assert!(settings.overlay.show_reward_overlay);
     }
 }

@@ -27,6 +27,11 @@ impl SettingsApp {
                 self.is_dirty = true;
                 self.status = "Unsaved changes".to_owned();
             }
+            Message::ShowRewardOverlayChanged(value) => {
+                self.show_reward_overlay = value;
+                self.is_dirty = true;
+                self.status = "Unsaved changes".to_owned();
+            }
             Message::Save => match self.settings().save(&self.settings_path) {
                 Ok(()) => {
                     let settings = self.settings();
@@ -43,6 +48,7 @@ impl SettingsApp {
                 let settings = AppSettings::default();
                 self.reward_scan = settings.hotkeys.reward_scan;
                 self.inventory_scan = settings.hotkeys.inventory_scan;
+                self.show_reward_overlay = settings.overlay.show_reward_overlay;
                 self.is_dirty = true;
                 self.status = "Defaults restored".to_owned();
             }
@@ -137,11 +143,14 @@ impl SettingsApp {
                     Ok(report) => {
                         let output = report.output;
                         let item_count = output.items.len();
-                        let overlay_status =
+                        let overlay_status = if self.show_reward_overlay {
                             spawn_reward_overlay(&output, report.overlay_output_size)
                                 .err()
                                 .map(|error| format!("; overlay failed: {error}"))
-                                .unwrap_or_default();
+                                .unwrap_or_default()
+                        } else {
+                            String::new()
+                        };
                         self.status = format!(
                             "{} scan found {item_count} item{} from {} text block{}",
                             output.kind.label(),

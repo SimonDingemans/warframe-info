@@ -1,9 +1,9 @@
 use iced::{
     alignment,
-    widget::{button, column, container, row, rule, scrollable, text, text_input},
+    widget::{button, column, container, row, rule, scrollable, text, text_input, toggler},
     Element, Length,
 };
-use info_core::ScanOutput;
+use ui_core::reward_cards_from_scan_output;
 
 use crate::{scan, system_hotkeys};
 
@@ -57,6 +57,15 @@ impl SettingsApp {
         ]
         .spacing(12);
 
+        let overlay = column![
+            text("Overlay").size(22),
+            toggler(self.show_reward_overlay)
+                .label("Show reward overlay after reward scans")
+                .on_toggle(Message::ShowRewardOverlayChanged)
+                .size(18),
+        ]
+        .spacing(12);
+
         let mut actions = row![
             button("Save").on_press(Message::Save).padding([8, 14]),
             button("Reset")
@@ -81,9 +90,14 @@ impl SettingsApp {
             );
         }
 
-        column![hotkeys, actions, text(&self.hotkey_status).size(14)]
-            .spacing(18)
-            .into()
+        column![
+            hotkeys,
+            overlay,
+            actions,
+            text(&self.hotkey_status).size(14)
+        ]
+        .spacing(18)
+        .into()
     }
 
     fn scan_tab(&self) -> Element<'_, Message> {
@@ -114,9 +128,12 @@ impl SettingsApp {
         ]
         .spacing(10);
 
-        let results = scan_results(self.last_scan.as_ref());
+        let results = scan_results(self);
 
-        column![pipeline_actions, results].spacing(18).into()
+        column![pipeline_actions, results]
+            .spacing(18)
+            .height(Length::Fill)
+            .into()
     }
 }
 
@@ -142,34 +159,41 @@ fn status_text(app: &SettingsApp) -> String {
     }
 }
 
-fn scan_results(output: Option<&ScanOutput>) -> Element<'_, Message> {
-    let mut content = column![text("Results").size(22)].spacing(8);
+fn scan_results(app: &SettingsApp) -> Element<'_, Message> {
+    let body = scan_results_body(app);
 
-    let Some(output) = output else {
-        return content.push(text("No scan results yet").size(14)).into();
+    column![text("Results").size(22), body]
+        .spacing(8)
+        .height(Length::Fill)
+        .into()
+}
+
+fn scan_results_body(app: &SettingsApp) -> Element<'_, Message> {
+    let Some(output) = app.last_scan.as_ref() else {
+        return centered_results_text("No scan results yet");
     };
 
-    content = content.push(
-        text(format!(
-            "{} scan, source {}x{}, crop {}x{}",
-            output.kind.label(),
-            output.source_width,
-            output.source_height,
-            output.cropped_width,
-            output.cropped_height,
-        ))
-        .size(14),
-    );
+    let items = reward_cards_from_scan_output(output);
 
-    if output.items.is_empty() {
-        content = content.push(text("No items found").size(14));
-    } else {
-        for item in &output.items {
-            content = content.push(text(item.summary()).size(16));
-        }
+    if items.is_empty() {
+        return centered_results_text("No items found");
     }
 
-    scrollable(content).height(Length::Fill).into()
+    let cards = ui_core::reward_cards_row(items, &app.reward_card_assets)
+        .wrap()
+        .vertical_spacing(ui_core::REWARD_CARD_SPACING)
+        .align_x(alignment::Horizontal::Center);
+
+    let centered_cards = container(cards).center(Length::Fill);
+
+    scrollable(centered_cards)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+}
+
+fn centered_results_text(label: &'static str) -> Element<'static, Message> {
+    container(text(label).size(14)).center(Length::Fill).into()
 }
 
 fn labeled_input<'a>(

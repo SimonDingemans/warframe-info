@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use overlay::{DisplayOutput, RewardHighlight, RewardOverlay, RewardOverlayEntry};
+use overlay::{DisplayOutput, RewardOverlay};
+use ui_core::{RewardCardEntry, RewardHighlight};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,21 +19,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         output_size: Some(output.size),
         duration: Some(Duration::from_secs(5)),
         rewards: vec![
-            RewardOverlayEntry::name_only("Forma Blueprint")
+            RewardCardEntry::name_only("Forma Blueprint")
                 .with_platinum(8)
                 .with_ducats(0)
                 .with_volume(172),
-            RewardOverlayEntry::name_only("Braton Prime Receiver")
+            RewardCardEntry::name_only("Braton Prime Receiver")
                 .with_platinum(42)
                 .with_ducats(45)
                 .with_volume(18)
                 .with_vaulted(true),
-            RewardOverlayEntry::name_only("Paris Prime String")
+            RewardCardEntry::name_only("Paris Prime String")
                 .with_platinum(15)
                 .with_ducats(25)
                 .with_volume(36),
             {
-                let mut reward = RewardOverlayEntry::name_only("Akbronco Prime Link")
+                let mut reward = RewardCardEntry::name_only("Akbronco Prime Link")
                     .with_platinum(24)
                     .with_ducats(45)
                     .with_volume(7);

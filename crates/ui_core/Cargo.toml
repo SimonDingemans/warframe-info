@@ -1,0 +1,14 @@
+[package]
+name = "ui_core"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = ["iced-ui"]
+iced-ui = ["dep:iced", "dep:image"]
+scan = ["dep:info_core"]
+
+[dependencies]
+iced = { workspace = true, optional = true }
+image = { workspace = true, optional = true }
+info_core = { path = "../info_core", optional = true }

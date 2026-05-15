@@ -10,6 +10,7 @@ pub(super) enum Message {
     TabSelected(AppTab),
     RewardScanChanged(String),
     InventoryScanChanged(String),
+    ShowRewardOverlayChanged(bool),
     Save,
     ResetDefaults,
     ConfigureHotkeysRequested,

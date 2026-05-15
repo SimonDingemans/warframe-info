@@ -5,7 +5,8 @@ use std::{
 };
 
 use info_core::{ScanKind, ScanOutput, WarframeItem};
-use overlay::{RewardHighlight, RewardOverlay, RewardOverlayEntry};
+use overlay::RewardOverlay;
+use ui_core::{RewardCardEntry, RewardHighlight};
 
 const REWARD_OVERLAY_ARG: &str = "--wf-info-reward-overlay";
 const TEST_REWARD_OVERLAY_ARG: &str = "--wf-info-test-reward-overlay";
@@ -181,15 +182,15 @@ fn reward_arg(item: &WarframeItem) -> String {
     )
 }
 
-fn parse_reward_arg(arg: &OsString) -> RewardOverlayEntry {
+fn parse_reward_arg(arg: &OsString) -> RewardCardEntry {
     let value = arg.to_string_lossy();
     let fields = value.split('\t').collect::<Vec<_>>();
 
     if fields.len() != 5 {
-        return RewardOverlayEntry::name_only(value);
+        return RewardCardEntry::name_only(value);
     }
 
-    let mut reward = RewardOverlayEntry::name_only(fields[0]);
+    let mut reward = RewardCardEntry::name_only(fields[0]);
 
     if let Ok(platinum) = fields[1].parse() {
         reward = reward.with_platinum(platinum);
@@ -220,23 +221,23 @@ fn parse_output_size(value: &OsString) -> Result<(u32, u32), String> {
     Ok((width, height))
 }
 
-fn test_rewards() -> Vec<RewardOverlayEntry> {
+fn test_rewards() -> Vec<RewardCardEntry> {
     vec![
-        RewardOverlayEntry::name_only("Forma Blueprint")
+        RewardCardEntry::name_only("Forma Blueprint")
             .with_platinum(8)
             .with_ducats(0)
             .with_volume(172),
-        RewardOverlayEntry::name_only("Braton Prime Receiver")
+        RewardCardEntry::name_only("Braton Prime Receiver")
             .with_platinum(42)
             .with_ducats(45)
             .with_volume(18)
             .with_vaulted(true),
-        RewardOverlayEntry::name_only("Paris Prime String")
+        RewardCardEntry::name_only("Paris Prime String")
             .with_platinum(15)
             .with_ducats(25)
             .with_volume(36),
         {
-            let mut reward = RewardOverlayEntry::name_only("Akbronco Prime Link")
+            let mut reward = RewardCardEntry::name_only("Akbronco Prime Link")
                 .with_platinum(24)
                 .with_ducats(45)
                 .with_volume(7);

@@ -16,14 +16,15 @@ It does not open windows by itself. Platform-specific crates, such as
 ## Usage
 
 ```rust
-use overlay::{RewardOverlay, RewardOverlayEntry};
+use overlay::RewardOverlay;
+use ui_core::RewardCardEntry;
 
 let overlay = RewardOverlay {
     output_name: None,
     output_size: Some((1920, 1080)),
     duration: None,
     rewards: vec![
-        RewardOverlayEntry::name_only("Forma Blueprint").with_platinum(8),
+        RewardCardEntry::name_only("Forma Blueprint").with_platinum(8),
     ],
 };
 ```

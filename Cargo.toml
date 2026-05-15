@@ -12,6 +12,7 @@ members = [
     "crates/overlay_wayland",
     "crates/ocr",
     "crates/platform_capabilities",
+    "crates/ui_core",
 ]
 
 [workspace.package]

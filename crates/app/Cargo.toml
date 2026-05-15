@@ -14,4 +14,5 @@ info_core = { path = "../info_core" }
 ocr = { path = "../ocr" }
 overlay = { path = "../overlay" }
 platform_capabilities = { path = "../platform_capabilities" }
+ui_core = { path = "../ui_core", features = ["scan"] }
 wf-market.workspace = true

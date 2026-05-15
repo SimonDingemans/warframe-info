@@ -149,6 +149,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "ui_core",
  "wf-market",
 ]
 
@@ -3762,6 +3763,9 @@ dependencies = [
 [[package]]
 name = "overlay"
 version = "0.1.0"
+dependencies = [
+ "ui_core",
+]
 
 [[package]]
 name = "overlay_wayland"
@@ -3770,9 +3774,9 @@ dependencies = [
  "ashpd",
  "iced",
  "iced_layershell",
- "image 0.24.9",
  "overlay",
  "tokio",
+ "ui_core",
  "wayland-client",
  "wayland-protocols",
 ]
@@ -5583,6 +5587,15 @@ dependencies = [
  "memoffset",
  "tempfile",
  "winapi",
+]
+
+[[package]]
+name = "ui_core"
+version = "0.1.0"
+dependencies = [
+ "iced",
+ "image 0.24.9",
+ "info_core",
 ]
 
 [[package]]
