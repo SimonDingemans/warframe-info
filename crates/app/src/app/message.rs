@@ -1,11 +1,14 @@
 use hotkeys::HotkeyEvent;
 use info_core::{AppSettings, ScanKind};
 
-use crate::scan::ScanReport;
+use crate::{
+    market::orders::{MarketOrder, OrderDraft, OrderItemOption, OrderSession, OrderSide},
+    scan::ScanReport,
+};
 
 use super::state::{AppTab, ResultSort};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(super) enum Message {
     TabSelected(AppTab),
     ResultSortSelected(ResultSort),
@@ -24,4 +27,86 @@ pub(super) enum Message {
     RewardScanRequested,
     InventoryScanRequested,
     ScanFinished(ScanKind, Result<ScanReport, String>),
+    RestoreOrderSessionFinished(Result<Option<OrderSession>, String>),
+    OrderEmailChanged(String),
+    OrderPasswordChanged(String),
+    OrderLoginRequested,
+    OrderLoginFinished(Result<OrderSession, String>),
+    OrderLogoutRequested,
+    OrderItemsLoaded(Result<Vec<OrderItemOption>, String>),
+    OrdersRefreshRequested,
+    OrdersLoaded(Result<Vec<MarketOrder>, String>),
+    OrderSearchChanged(String),
+    ManualOrderDraftRequested(OrderItemOption, OrderSide),
+    ScanItemOrderDraftRequested(usize, OrderSide),
+    OrderDraftLoaded(OrderDraft),
+    OrderDraftSideChanged(OrderSide),
+    OrderDraftPriceChanged(String),
+    OrderDraftQuantityChanged(String),
+    OrderDraftVisibleChanged(bool),
+    OrderDraftRankChanged(String),
+    OrderDraftChargesChanged(String),
+    OrderDraftAmberStarsChanged(String),
+    OrderDraftCyanStarsChanged(String),
+    OrderDraftSubtypeChanged(String),
+    OrderEditRequested(String),
+    OrderDeleteRequested(String),
+    OrderCloseRequested(String),
+    OrderSubmitRequested,
+    OrderMutationConfirmed,
+    OrderMutationCanceled,
+    OrderMutationFinished(Result<Vec<MarketOrder>, String>),
+}
+
+impl std::fmt::Debug for Message {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(match self {
+            Self::TabSelected(_) => "TabSelected",
+            Self::ResultSortSelected(_) => "ResultSortSelected",
+            Self::RewardScanChanged(_) => "RewardScanChanged",
+            Self::InventoryScanChanged(_) => "InventoryScanChanged",
+            Self::ShowRewardOverlayChanged(_) => "ShowRewardOverlayChanged",
+            Self::Save => "Save",
+            Self::ResetDefaults => "ResetDefaults",
+            Self::ConfigureHotkeysRequested => "ConfigureHotkeysRequested",
+            Self::ConfigureHotkeysFinished(_, _) => "ConfigureHotkeysFinished",
+            Self::Hotkey(_) => "Hotkey",
+            Self::ScreenCapturePermissionFinished(_) => "ScreenCapturePermissionFinished",
+            Self::ResetScreenCaptureTokenRequested => "ResetScreenCaptureTokenRequested",
+            Self::InvalidateMarketCacheRequested => "InvalidateMarketCacheRequested",
+            Self::TestOverlayRequested => "TestOverlayRequested",
+            Self::RewardScanRequested => "RewardScanRequested",
+            Self::InventoryScanRequested => "InventoryScanRequested",
+            Self::ScanFinished(_, _) => "ScanFinished",
+            Self::RestoreOrderSessionFinished(_) => "RestoreOrderSessionFinished",
+            Self::OrderEmailChanged(_) => "OrderEmailChanged",
+            Self::OrderPasswordChanged(_) => "OrderPasswordChanged",
+            Self::OrderLoginRequested => "OrderLoginRequested",
+            Self::OrderLoginFinished(_) => "OrderLoginFinished",
+            Self::OrderLogoutRequested => "OrderLogoutRequested",
+            Self::OrderItemsLoaded(_) => "OrderItemsLoaded",
+            Self::OrdersRefreshRequested => "OrdersRefreshRequested",
+            Self::OrdersLoaded(_) => "OrdersLoaded",
+            Self::OrderSearchChanged(_) => "OrderSearchChanged",
+            Self::ManualOrderDraftRequested(_, _) => "ManualOrderDraftRequested",
+            Self::ScanItemOrderDraftRequested(_, _) => "ScanItemOrderDraftRequested",
+            Self::OrderDraftLoaded(_) => "OrderDraftLoaded",
+            Self::OrderDraftSideChanged(_) => "OrderDraftSideChanged",
+            Self::OrderDraftPriceChanged(_) => "OrderDraftPriceChanged",
+            Self::OrderDraftQuantityChanged(_) => "OrderDraftQuantityChanged",
+            Self::OrderDraftVisibleChanged(_) => "OrderDraftVisibleChanged",
+            Self::OrderDraftRankChanged(_) => "OrderDraftRankChanged",
+            Self::OrderDraftChargesChanged(_) => "OrderDraftChargesChanged",
+            Self::OrderDraftAmberStarsChanged(_) => "OrderDraftAmberStarsChanged",
+            Self::OrderDraftCyanStarsChanged(_) => "OrderDraftCyanStarsChanged",
+            Self::OrderDraftSubtypeChanged(_) => "OrderDraftSubtypeChanged",
+            Self::OrderEditRequested(_) => "OrderEditRequested",
+            Self::OrderDeleteRequested(_) => "OrderDeleteRequested",
+            Self::OrderCloseRequested(_) => "OrderCloseRequested",
+            Self::OrderSubmitRequested => "OrderSubmitRequested",
+            Self::OrderMutationConfirmed => "OrderMutationConfirmed",
+            Self::OrderMutationCanceled => "OrderMutationCanceled",
+            Self::OrderMutationFinished(_) => "OrderMutationFinished",
+        })
+    }
 }

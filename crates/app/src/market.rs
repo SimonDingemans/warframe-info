@@ -10,6 +10,8 @@ use info_core::{ItemDatabase, ScanOutput, WarframeItem};
 use serde::{Deserialize, Serialize};
 use wf_market::{ApiCache, Client, Item, SerializableCache, Unauthenticated};
 
+pub(crate) mod orders;
+
 const CACHE_TTL: Duration = Duration::from_secs(60 * 60);
 const ITEM_CACHE_FILE: &str = "wf_market_cache.json";
 const PRICE_CACHE_FILE: &str = "wf_market_price_cache.json";

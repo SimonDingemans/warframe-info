@@ -4,6 +4,7 @@ use info_core::{AppSettings, ScanKind};
 use hotkeys::HotkeyEvent;
 
 use crate::{
+    market::orders::{self, OrderItemOption, PendingOrderAction},
     overlay::{spawn_reward_overlay, spawn_test_reward_overlay},
     scan::run_scan,
     system_hotkeys,
@@ -16,6 +17,9 @@ impl SettingsApp {
         match message {
             Message::TabSelected(tab) => {
                 self.active_tab = tab;
+                if tab == super::state::AppTab::Orders {
+                    return self.start_orders_tab();
+                }
             }
             Message::ResultSortSelected(sort) => {
                 self.result_sort = sort;
@@ -169,9 +173,330 @@ impl SettingsApp {
                     }
                 }
             }
+            Message::RestoreOrderSessionFinished(result) => {
+                self.is_order_authenticating = false;
+
+                match result {
+                    Ok(Some(session)) => {
+                        self.order_email = session.email.clone();
+                        self.order_session = Some(session);
+                        self.status = "Warframe Market session restored".to_owned();
+                        return self.refresh_orders();
+                    }
+                    Ok(None) => {
+                        self.status = "Log in to manage Warframe Market orders".to_owned();
+                    }
+                    Err(error) => {
+                        self.status = error;
+                    }
+                }
+            }
+            Message::OrderEmailChanged(value) => {
+                self.order_email = value;
+            }
+            Message::OrderPasswordChanged(value) => {
+                self.order_password = value;
+            }
+            Message::OrderLoginRequested => {
+                if self.is_order_authenticating {
+                    return Task::none();
+                }
+
+                self.is_order_authenticating = true;
+                self.status = "Logging in to Warframe Market".to_owned();
+
+                let session_path = self.order_session_path.clone();
+                let email = self.order_email.clone();
+                let password = self.order_password.clone();
+
+                return Task::perform(orders::login(session_path, email, password), |result| {
+                    Message::OrderLoginFinished(result)
+                });
+            }
+            Message::OrderLoginFinished(result) => {
+                self.is_order_authenticating = false;
+                self.order_password.clear();
+
+                match result {
+                    Ok(session) => {
+                        self.order_email = session.email.clone();
+                        self.order_session = Some(session);
+                        self.status = "Logged in to Warframe Market".to_owned();
+                        return self.refresh_orders();
+                    }
+                    Err(error) => {
+                        self.status = error;
+                    }
+                }
+            }
+            Message::OrderLogoutRequested => match orders::logout(&self.order_session_path) {
+                Ok(()) => {
+                    self.order_session = None;
+                    self.orders.clear();
+                    self.order_password.clear();
+                    self.pending_order_action = None;
+                    self.status = "Logged out of Warframe Market".to_owned();
+                }
+                Err(error) => {
+                    self.status = error;
+                }
+            },
+            Message::OrderItemsLoaded(result) => {
+                self.is_loading_order_items = false;
+
+                match result {
+                    Ok(items) => {
+                        let count = items.len();
+                        self.order_items = items;
+                        self.status = format!("Loaded {count} Warframe Market items");
+                    }
+                    Err(error) => {
+                        self.status = error;
+                    }
+                }
+            }
+            Message::OrdersRefreshRequested => {
+                return self.refresh_orders();
+            }
+            Message::OrdersLoaded(result) => {
+                self.is_loading_orders = false;
+
+                match result {
+                    Ok(orders) => {
+                        let count = orders.len();
+                        self.orders = orders;
+                        self.status = format!(
+                            "Loaded {count} Warframe Market order{}",
+                            plural_suffix(count)
+                        );
+                    }
+                    Err(error) => {
+                        self.status = error;
+                    }
+                }
+            }
+            Message::OrderSearchChanged(value) => {
+                self.order_search = value;
+            }
+            Message::ManualOrderDraftRequested(item, side) => {
+                self.status = format!("Preparing {} order for {}", side.label(), item.name);
+                return Task::perform(
+                    orders::create_draft_with_price(item, side, None),
+                    Message::OrderDraftLoaded,
+                );
+            }
+            Message::ScanItemOrderDraftRequested(index, side) => {
+                let Some(output) = self.last_scan.as_ref() else {
+                    self.status = "No scan result item to order".to_owned();
+                    return Task::none();
+                };
+
+                let Some(item) = output.items.get(index).cloned() else {
+                    self.status = "Scan result item is no longer available".to_owned();
+                    return Task::none();
+                };
+
+                let Some(option) = OrderItemOption::from_scan_item(&item) else {
+                    self.status = format!("{} is not linked to Warframe Market", item.name);
+                    return Task::none();
+                };
+                let option = self
+                    .order_items
+                    .iter()
+                    .find(|candidate| candidate.slug == option.slug)
+                    .cloned()
+                    .unwrap_or(option);
+
+                let fallback_price =
+                    (item.platinum_rounded() > 0).then_some(item.platinum_rounded());
+                self.active_tab = super::state::AppTab::Orders;
+                self.status = format!("Preparing {} order for {}", side.label(), option.name);
+
+                let draft_task = Task::perform(
+                    orders::create_draft_with_price(option, side, fallback_price),
+                    Message::OrderDraftLoaded,
+                );
+                let tab_task = self.start_orders_tab();
+
+                return Task::batch([draft_task, tab_task]);
+            }
+            Message::OrderDraftLoaded(draft) => {
+                self.order_search = draft.item_name.clone();
+                self.order_draft = draft;
+                self.pending_order_action = None;
+                self.status = "Order draft ready".to_owned();
+            }
+            Message::OrderDraftSideChanged(side) => {
+                self.order_draft.side = side;
+                if matches!(self.order_draft.mode, orders::DraftMode::Create)
+                    && !self.order_draft.item_slug.is_empty()
+                {
+                    let draft = self.order_draft.clone();
+                    return Task::perform(
+                        orders::refresh_draft_price(draft, None),
+                        Message::OrderDraftLoaded,
+                    );
+                }
+            }
+            Message::OrderDraftPriceChanged(value) => {
+                self.order_draft.platinum = value;
+            }
+            Message::OrderDraftQuantityChanged(value) => {
+                self.order_draft.quantity = value;
+            }
+            Message::OrderDraftVisibleChanged(value) => {
+                self.order_draft.visible = value;
+            }
+            Message::OrderDraftRankChanged(value) => {
+                self.order_draft.rank = value;
+                if matches!(self.order_draft.mode, orders::DraftMode::Create)
+                    && !self.order_draft.item_slug.is_empty()
+                {
+                    let draft = self.order_draft.clone();
+                    return Task::perform(
+                        orders::refresh_draft_price(draft, None),
+                        Message::OrderDraftLoaded,
+                    );
+                }
+            }
+            Message::OrderDraftChargesChanged(value) => {
+                self.order_draft.charges = value;
+            }
+            Message::OrderDraftAmberStarsChanged(value) => {
+                self.order_draft.amber_stars = value;
+            }
+            Message::OrderDraftCyanStarsChanged(value) => {
+                self.order_draft.cyan_stars = value;
+            }
+            Message::OrderDraftSubtypeChanged(value) => {
+                self.order_draft.subtype = value;
+            }
+            Message::OrderEditRequested(order_id) => {
+                if let Some(order) = self.orders.iter().find(|order| order.id == order_id) {
+                    self.order_search = order.item_name.clone();
+                    self.order_draft = orders::OrderDraft::edit(order);
+                    self.pending_order_action = None;
+                    self.status = "Order loaded into editor".to_owned();
+                }
+            }
+            Message::OrderDeleteRequested(order_id) => {
+                self.pending_order_action = Some(PendingOrderAction::Delete { order_id });
+            }
+            Message::OrderCloseRequested(order_id) => {
+                if let Some(order) = self.orders.iter().find(|order| order.id == order_id) {
+                    self.pending_order_action = Some(PendingOrderAction::Close {
+                        order_id,
+                        quantity: order.quantity,
+                    });
+                }
+            }
+            Message::OrderSubmitRequested => {
+                if self.order_session.is_none() {
+                    self.status = "Log in before submitting Warframe Market orders".to_owned();
+                    return Task::none();
+                }
+
+                match orders::pending_action_from_draft(&self.order_draft) {
+                    Ok(action) => {
+                        self.pending_order_action = Some(action);
+                    }
+                    Err(error) => {
+                        self.status = error;
+                    }
+                }
+            }
+            Message::OrderMutationConfirmed => {
+                if self.is_mutating_order {
+                    return Task::none();
+                }
+
+                let Some(session) = self.order_session.as_ref() else {
+                    self.status = "Log in before changing Warframe Market orders".to_owned();
+                    return Task::none();
+                };
+
+                let Some(action) = self.pending_order_action.clone() else {
+                    return Task::none();
+                };
+
+                self.is_mutating_order = true;
+                self.status = "Updating Warframe Market order".to_owned();
+
+                return Task::perform(
+                    orders::commit_action(session.client.clone(), action),
+                    Message::OrderMutationFinished,
+                );
+            }
+            Message::OrderMutationCanceled => {
+                self.pending_order_action = None;
+            }
+            Message::OrderMutationFinished(result) => {
+                self.is_mutating_order = false;
+                self.pending_order_action = None;
+
+                match result {
+                    Ok(orders) => {
+                        self.orders = orders;
+                        self.order_draft = orders::OrderDraft::empty();
+                        self.status = "Warframe Market order updated".to_owned();
+                    }
+                    Err(error) => {
+                        self.status = error;
+                    }
+                }
+            }
         }
 
         Task::none()
+    }
+
+    fn start_orders_tab(&mut self) -> Task<Message> {
+        let mut tasks = Vec::new();
+
+        if self.order_items.is_empty() && !self.is_loading_order_items {
+            self.is_loading_order_items = true;
+            tasks.push(Task::perform(
+                orders::load_item_options(),
+                Message::OrderItemsLoaded,
+            ));
+        }
+
+        if self.order_session.is_none() && !self.is_order_authenticating {
+            self.is_order_authenticating = true;
+            let session_path = self.order_session_path.clone();
+            tasks.push(Task::perform(
+                orders::restore_session(session_path),
+                Message::RestoreOrderSessionFinished,
+            ));
+        } else if self.order_session.is_some() && self.orders.is_empty() && !self.is_loading_orders
+        {
+            tasks.push(self.refresh_orders());
+        }
+
+        if tasks.is_empty() {
+            Task::none()
+        } else {
+            Task::batch(tasks)
+        }
+    }
+
+    fn refresh_orders(&mut self) -> Task<Message> {
+        if self.is_loading_orders {
+            return Task::none();
+        }
+
+        let Some(session) = self.order_session.as_ref() else {
+            self.status = "Log in to refresh Warframe Market orders".to_owned();
+            return Task::none();
+        };
+
+        self.is_loading_orders = true;
+        self.status = "Loading Warframe Market orders".to_owned();
+
+        Task::perform(
+            orders::load_orders(session.client.clone()),
+            Message::OrdersLoaded,
+        )
     }
 
     fn start_scan(&mut self, kind: ScanKind) -> Task<Message> {

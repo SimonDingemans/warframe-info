@@ -10,6 +10,10 @@ impl ItemDatabase {
         Self { items }
     }
 
+    pub fn items(&self) -> &[WarframeItem] {
+        &self.items
+    }
+
     pub fn find_item(&self, text: &str, threshold: Option<usize>) -> Option<&WarframeItem> {
         let needle = searchable_item_name(text);
         let needle_is_set = needle.ends_with("set");
@@ -35,6 +39,44 @@ impl ItemDatabase {
         texts
             .into_iter()
             .filter_map(|text| self.find_item(text, None).cloned())
+            .collect()
+    }
+
+    pub fn search_items(&self, query: &str, limit: usize) -> Vec<WarframeItem> {
+        let needle = searchable_item_name(query);
+
+        if needle.is_empty() || limit == 0 {
+            return Vec::new();
+        }
+
+        let mut matches = self
+            .items
+            .iter()
+            .filter_map(|item| {
+                let haystack = searchable_item_name(&item.name);
+                if haystack.contains(&needle) {
+                    Some((
+                        item,
+                        haystack.find(&needle).unwrap_or(usize::MAX),
+                        item.name.len(),
+                    ))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        matches.sort_by(|left, right| {
+            left.1
+                .cmp(&right.1)
+                .then_with(|| left.2.cmp(&right.2))
+                .then_with(|| left.0.name.cmp(&right.0.name))
+        });
+
+        matches
+            .into_iter()
+            .take(limit)
+            .map(|(item, _, _)| item.clone())
             .collect()
     }
 }
@@ -110,6 +152,16 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "Ash Prime Systems Blueprint");
+    }
+
+    #[test]
+    fn database_searches_items_by_partial_name() {
+        let database = test_database();
+        let items = database.search_items("ash prime", 10);
+
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].name, "Ash Prime Set");
+        assert_eq!(items[1].name, "Ash Prime Systems Blueprint");
     }
 
     #[test]

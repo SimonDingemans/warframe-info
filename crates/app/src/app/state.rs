@@ -6,12 +6,18 @@ use info_core::AppSettings;
 use ui_core::RewardCardAssets;
 
 use super::message::Message;
-use crate::system_hotkeys;
+use crate::{
+    market::orders::{
+        DraftMode, MarketOrder, OrderDraft, OrderItemOption, OrderSession, PendingOrderAction,
+    },
+    system_hotkeys,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AppTab {
     Settings,
     Scan,
+    Orders,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +48,7 @@ impl ResultSort {
 
 pub(super) struct SettingsApp {
     pub(super) settings_path: PathBuf,
+    pub(super) order_session_path: PathBuf,
     pub(super) active_settings: AppSettings,
     pub(super) active_tab: AppTab,
     pub(super) reward_scan: String,
@@ -55,10 +62,24 @@ pub(super) struct SettingsApp {
     pub(super) hotkey_status: String,
     pub(super) status: String,
     pub(super) reward_card_assets: RewardCardAssets,
+    pub(super) order_email: String,
+    pub(super) order_password: String,
+    pub(super) order_session: Option<OrderSession>,
+    pub(super) is_order_authenticating: bool,
+    pub(super) is_loading_order_items: bool,
+    pub(super) is_loading_orders: bool,
+    pub(super) is_mutating_order: bool,
+    pub(super) orders: Vec<MarketOrder>,
+    pub(super) order_items: Vec<OrderItemOption>,
+    pub(super) order_search: String,
+    pub(super) order_draft: OrderDraft,
+    pub(super) pending_order_action: Option<PendingOrderAction>,
 }
 
 impl SettingsApp {
     pub(super) fn load(settings_path: PathBuf) -> Self {
+        let order_session_path = crate::market::orders::session_path_for_settings(&settings_path);
+
         match AppSettings::load_or_create(&settings_path) {
             Ok(settings) => {
                 let (hotkeys, hotkey_status) =
@@ -66,6 +87,7 @@ impl SettingsApp {
 
                 Self {
                     settings_path,
+                    order_session_path,
                     active_settings: settings.clone(),
                     active_tab: AppTab::Scan,
                     reward_scan: settings.hotkeys.reward_scan,
@@ -79,6 +101,18 @@ impl SettingsApp {
                     hotkey_status,
                     status: "Settings loaded".to_owned(),
                     reward_card_assets: RewardCardAssets::load(),
+                    order_email: String::new(),
+                    order_password: String::new(),
+                    order_session: None,
+                    is_order_authenticating: false,
+                    is_loading_order_items: false,
+                    is_loading_orders: false,
+                    is_mutating_order: false,
+                    orders: Vec::new(),
+                    order_items: Vec::new(),
+                    order_search: String::new(),
+                    order_draft: OrderDraft::empty(),
+                    pending_order_action: None,
                 }
             }
             Err(error) => {
@@ -88,6 +122,7 @@ impl SettingsApp {
 
                 Self {
                     settings_path,
+                    order_session_path,
                     active_settings: settings.clone(),
                     active_tab: AppTab::Scan,
                     reward_scan: settings.hotkeys.reward_scan,
@@ -101,6 +136,18 @@ impl SettingsApp {
                     hotkey_status,
                     status: format!("Could not load settings: {error}"),
                     reward_card_assets: RewardCardAssets::load(),
+                    order_email: String::new(),
+                    order_password: String::new(),
+                    order_session: None,
+                    is_order_authenticating: false,
+                    is_loading_order_items: false,
+                    is_loading_orders: false,
+                    is_mutating_order: false,
+                    orders: Vec::new(),
+                    order_items: Vec::new(),
+                    order_search: String::new(),
+                    order_draft: OrderDraft::empty(),
+                    pending_order_action: None,
                 }
             }
         }
@@ -122,5 +169,9 @@ impl SettingsApp {
         self.hotkeys
             .subscription(&self.active_settings)
             .map(Message::Hotkey)
+    }
+
+    pub(super) fn draft_is_editing(&self) -> bool {
+        matches!(self.order_draft.mode, DraftMode::Edit(_))
     }
 }
