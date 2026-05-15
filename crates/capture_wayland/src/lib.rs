@@ -1,5 +1,6 @@
 use std::{
     fs,
+    os::fd::OwnedFd,
     path::PathBuf,
     sync::mpsc::{self, Sender},
     time::Duration,
@@ -60,9 +61,15 @@ async fn capture_screen_with_portal() -> CaptureResult<Screenshot> {
         return Err(not_wayland_session());
     }
 
-    let (stream, fd) = open_screen_stream().await?;
-    let source = screen_capture_source(&stream);
-    let image = capture_pipewire_frame(stream.pipe_wire_node_id(), fd)?;
+    let capture = open_screen_stream().await?;
+    let source = screen_capture_source(&capture.stream);
+    let image = capture_pipewire_frame(capture.stream.pipe_wire_node_id(), capture.fd);
+    let close = capture.session.close().await.map_err(portal_error);
+    let image = match (image, close) {
+        (Ok(image), Ok(())) => image,
+        (Err(error), _) => return Err(error),
+        (Ok(_), Err(error)) => return Err(error),
+    };
 
     Ok(Screenshot { image, source })
 }
@@ -72,30 +79,54 @@ async fn request_screen_capture_permission_with_portal() -> CaptureResult<()> {
         return Err(not_wayland_session());
     }
 
-    let (_session, response) = request_screen_capture_response().await?;
+    let (session, response) = request_screen_capture_response().await?;
+    let response = if response.streams().is_empty() {
+        Err(missing_stream())
+    } else {
+        Ok(())
+    };
+    let close = session.close().await.map_err(portal_error);
 
-    if response.streams().is_empty() {
-        return Err(missing_stream());
+    match (response, close) {
+        (Ok(()), Ok(())) => Ok(()),
+        (Err(error), _) => Err(error),
+        (Ok(()), Err(error)) => Err(error),
     }
-
-    Ok(())
 }
 
-async fn open_screen_stream() -> CaptureResult<(ScreencastStream, std::os::fd::OwnedFd)> {
+struct OpenScreenStream {
+    session: Session<Screencast>,
+    stream: ScreencastStream,
+    fd: OwnedFd,
+}
+
+async fn open_screen_stream() -> CaptureResult<OpenScreenStream> {
     let proxy = Screencast::new().await.map_err(portal_error)?;
     let (session, response) = request_screen_capture_response_with_proxy(&proxy).await?;
 
-    let stream = response
-        .streams()
-        .first()
-        .cloned()
-        .ok_or_else(missing_stream)?;
-    let fd = proxy
+    let stream = match response.streams().first().cloned() {
+        Some(stream) => stream,
+        None => {
+            let _ = session.close().await;
+            return Err(missing_stream());
+        }
+    };
+    let fd = match proxy
         .open_pipe_wire_remote(&session, Default::default())
         .await
-        .map_err(portal_error)?;
+    {
+        Ok(fd) => fd,
+        Err(error) => {
+            let _ = session.close().await;
+            return Err(portal_error(error));
+        }
+    };
 
-    Ok((stream, fd))
+    Ok(OpenScreenStream {
+        session,
+        stream,
+        fd,
+    })
 }
 
 async fn request_screen_capture_response() -> CaptureResult<(Session<Screencast>, Streams)> {
@@ -120,7 +151,7 @@ async fn request_screen_capture_response_with_proxy(
         .await
         .map_err(portal_error)?;
 
-    proxy
+    if let Err(error) = proxy
         .select_sources(
             &session,
             SelectSourcesOptions::default()
@@ -131,14 +162,25 @@ async fn request_screen_capture_response_with_proxy(
                 .set_persist_mode(PersistMode::ExplicitlyRevoked),
         )
         .await
-        .map_err(portal_error)?;
+    {
+        let _ = session.close().await;
+        return Err(portal_error(error));
+    }
 
-    let response = proxy
-        .start(&session, None, Default::default())
-        .await
-        .map_err(portal_error)?
-        .response()
-        .map_err(portal_error)?;
+    let request = match proxy.start(&session, None, Default::default()).await {
+        Ok(request) => request,
+        Err(error) => {
+            let _ = session.close().await;
+            return Err(portal_error(error));
+        }
+    };
+    let response = match request.response().map_err(portal_error) {
+        Ok(response) => response,
+        Err(error) => {
+            let _ = session.close().await;
+            return Err(error);
+        }
+    };
 
     if let Some(token) = response.restore_token() {
         write_screencast_token(&token_path, token)?;
@@ -163,7 +205,7 @@ struct PipeWireFrameState {
     sender: Sender<CaptureResult<DynamicImage>>,
 }
 
-fn capture_pipewire_frame(node_id: u32, fd: std::os::fd::OwnedFd) -> CaptureResult<DynamicImage> {
+fn capture_pipewire_frame(node_id: u32, fd: OwnedFd) -> CaptureResult<DynamicImage> {
     pw::init();
 
     let mainloop = pw::main_loop::MainLoopRc::new(None).map_err(pipewire_error)?;
@@ -244,9 +286,17 @@ fn capture_pipewire_frame(node_id: u32, fd: std::os::fd::OwnedFd) -> CaptureResu
         .map_err(pipewire_error)?;
 
     mainloop.run();
-    receiver
+    let frame = receiver
         .recv_timeout(Duration::from_secs(1))
-        .map_err(|_| CaptureError::InvalidFrame)?
+        .map_err(|_| CaptureError::InvalidFrame)
+        .and_then(|result| result);
+    let disconnect = stream.disconnect().map_err(pipewire_error);
+
+    match (frame, disconnect) {
+        (Ok(image), Ok(())) => Ok(image),
+        (Err(error), _) => Err(error),
+        (Ok(_), Err(error)) => Err(error),
+    }
 }
 
 fn pipewire_video_format_param_bytes() -> CaptureResult<Vec<u8>> {

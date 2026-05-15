@@ -66,6 +66,8 @@ async fn display_outputs() -> overlay::DisplayResult<Vec<DisplayOutput>> {
         write_screencast_token(&token_path, token)?;
     }
 
+    session.close().await.map_err(|error| error.to_string())?;
+
     let wayland_outputs = detect_wayland_outputs().unwrap_or_default();
 
     Ok(response
