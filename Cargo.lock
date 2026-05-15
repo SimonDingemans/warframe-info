@@ -669,6 +669,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "capture_windows"
+version = "0.1.0"
+dependencies = [
+ "capture",
+ "image 0.24.9",
+ "tokio",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.62"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3944,6 +3954,7 @@ version = "0.1.0"
 dependencies = [
  "capture",
  "capture_wayland",
+ "capture_windows",
  "hotkeys",
  "hotkeys_wayland",
  "info_core",

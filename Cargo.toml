@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/app",
     "crates/capture",
+    "crates/capture_windows",
     "crates/capture_wayland",
     "crates/hotkeys",
     "crates/hotkeys_wayland",

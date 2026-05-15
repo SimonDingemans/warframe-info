@@ -13,3 +13,6 @@ overlay = { path = "../overlay" }
 capture_wayland = { path = "../capture_wayland" }
 hotkeys_wayland = { path = "../hotkeys_wayland" }
 overlay_wayland = { path = "../overlay_wayland" }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+capture_windows = { path = "../capture_windows" }
