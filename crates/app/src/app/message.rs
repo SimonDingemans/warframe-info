@@ -3,11 +3,12 @@ use info_core::{AppSettings, ScanKind};
 
 use crate::scan::ScanReport;
 
-use super::state::AppTab;
+use super::state::{AppTab, ResultSort};
 
 #[derive(Debug, Clone)]
 pub(super) enum Message {
     TabSelected(AppTab),
+    ResultSortSelected(ResultSort),
     RewardScanChanged(String),
     InventoryScanChanged(String),
     ShowRewardOverlayChanged(bool),

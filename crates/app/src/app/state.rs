@@ -14,6 +14,32 @@ pub(super) enum AppTab {
     Scan,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ResultSort {
+    None,
+    Platinum,
+    Ducats,
+    DucatsPerPlatinum,
+}
+
+impl ResultSort {
+    pub(super) const ALL: [Self; 4] = [
+        Self::None,
+        Self::Platinum,
+        Self::Ducats,
+        Self::DucatsPerPlatinum,
+    ];
+
+    pub(super) fn label(self) -> &'static str {
+        match self {
+            Self::None => "None",
+            Self::Platinum => "Plat value",
+            Self::Ducats => "Ducat value",
+            Self::DucatsPerPlatinum => "Ducat / plat",
+        }
+    }
+}
+
 pub(super) struct SettingsApp {
     pub(super) settings_path: PathBuf,
     pub(super) active_settings: AppSettings,
@@ -24,6 +50,7 @@ pub(super) struct SettingsApp {
     pub(super) is_dirty: bool,
     pub(super) is_scanning: bool,
     pub(super) last_scan: Option<info_core::ScanOutput>,
+    pub(super) result_sort: ResultSort,
     pub(super) hotkeys: HotkeyBindings,
     pub(super) hotkey_status: String,
     pub(super) status: String,
@@ -47,6 +74,7 @@ impl SettingsApp {
                     is_dirty: false,
                     is_scanning: false,
                     last_scan: None,
+                    result_sort: ResultSort::None,
                     hotkeys,
                     hotkey_status,
                     status: "Settings loaded".to_owned(),
@@ -68,6 +96,7 @@ impl SettingsApp {
                     is_dirty: true,
                     is_scanning: false,
                     last_scan: None,
+                    result_sort: ResultSort::None,
                     hotkeys,
                     hotkey_status,
                     status: format!("Could not load settings: {error}"),

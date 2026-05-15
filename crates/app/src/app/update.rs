@@ -17,6 +17,9 @@ impl SettingsApp {
             Message::TabSelected(tab) => {
                 self.active_tab = tab;
             }
+            Message::ResultSortSelected(sort) => {
+                self.result_sort = sort;
+            }
             Message::RewardScanChanged(value) => {
                 self.reward_scan = value;
                 self.is_dirty = true;

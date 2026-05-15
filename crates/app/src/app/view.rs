@@ -9,7 +9,7 @@ use crate::{scan, system_hotkeys};
 
 use super::{
     message::Message,
-    state::{AppTab, SettingsApp},
+    state::{AppTab, ResultSort, SettingsApp},
 };
 
 impl SettingsApp {
@@ -161,11 +161,14 @@ fn status_text(app: &SettingsApp) -> String {
 
 fn scan_results(app: &SettingsApp) -> Element<'_, Message> {
     let body = scan_results_body(app);
+    let header = row![
+        text("Results").size(22).width(Length::Fill),
+        result_sort_controls(app.result_sort),
+    ]
+    .spacing(12)
+    .align_y(alignment::Vertical::Center);
 
-    column![text("Results").size(22), body]
-        .spacing(8)
-        .height(Length::Fill)
-        .into()
+    column![header, body].spacing(8).height(Length::Fill).into()
 }
 
 fn scan_results_body(app: &SettingsApp) -> Element<'_, Message> {
@@ -173,11 +176,13 @@ fn scan_results_body(app: &SettingsApp) -> Element<'_, Message> {
         return centered_results_text("No scan results yet");
     };
 
-    let items = reward_cards_from_scan_output(output);
+    let mut items = reward_cards_from_scan_output(output);
 
     if items.is_empty() {
         return centered_results_text("No items found");
     }
+
+    sort_reward_cards(&mut items, app.result_sort);
 
     let cards = ui_core::reward_cards_row(items, &app.reward_card_assets)
         .wrap()
@@ -190,6 +195,66 @@ fn scan_results_body(app: &SettingsApp) -> Element<'_, Message> {
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
+}
+
+fn result_sort_controls(active_sort: ResultSort) -> Element<'static, Message> {
+    ResultSort::ALL
+        .into_iter()
+        .fold(
+            row![text("Sort").size(14)]
+                .spacing(8)
+                .align_y(alignment::Vertical::Center),
+            |row, sort| row.push(result_sort_button(sort, active_sort)),
+        )
+        .into()
+}
+
+fn result_sort_button(sort: ResultSort, active_sort: ResultSort) -> Element<'static, Message> {
+    let style = if sort == active_sort {
+        iced::widget::button::primary
+    } else {
+        iced::widget::button::secondary
+    };
+
+    button(sort.label())
+        .on_press(Message::ResultSortSelected(sort))
+        .padding([6, 10])
+        .style(style)
+        .into()
+}
+
+fn sort_reward_cards(items: &mut [ui_core::RewardCardEntry], sort: ResultSort) {
+    if sort == ResultSort::None {
+        return;
+    }
+
+    items.sort_by(|left, right| {
+        let left_value = reward_sort_value(left, sort);
+        let right_value = reward_sort_value(right, sort);
+
+        match (left_value, right_value) {
+            (Some(left), Some(right)) => right.total_cmp(&left),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => std::cmp::Ordering::Equal,
+        }
+    });
+}
+
+fn reward_sort_value(reward: &ui_core::RewardCardEntry, sort: ResultSort) -> Option<f32> {
+    match sort {
+        ResultSort::None => None,
+        ResultSort::Platinum => reward.platinum.map(|platinum| platinum as f32),
+        ResultSort::Ducats => reward.ducats.map(|ducats| ducats as f32),
+        ResultSort::DucatsPerPlatinum => {
+            reward
+                .ducats
+                .zip(reward.platinum)
+                .and_then(|(ducats, platinum)| {
+                    (platinum > 0).then_some(ducats as f32 / platinum as f32)
+                })
+        }
+    }
 }
 
 fn centered_results_text(label: &'static str) -> Element<'static, Message> {
@@ -214,4 +279,77 @@ fn labeled_input<'a>(
     .spacing(12)
     .align_y(alignment::Vertical::Center)
     .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{sort_reward_cards, ResultSort};
+
+    #[test]
+    fn result_sort_none_keeps_scan_order() {
+        let mut items = vec![
+            ui_core::RewardCardEntry::name_only("Forma Blueprint").with_platinum(8),
+            ui_core::RewardCardEntry::name_only("Braton Prime Receiver").with_platinum(42),
+            ui_core::RewardCardEntry::name_only("Paris Prime String").with_platinum(15),
+        ];
+
+        sort_reward_cards(&mut items, ResultSort::None);
+
+        assert_eq!(items[0].name, "Forma Blueprint");
+        assert_eq!(items[1].name, "Braton Prime Receiver");
+        assert_eq!(items[2].name, "Paris Prime String");
+    }
+
+    #[test]
+    fn result_sort_sorts_by_highest_platinum_first() {
+        let mut items = vec![
+            ui_core::RewardCardEntry::name_only("Forma Blueprint").with_platinum(8),
+            ui_core::RewardCardEntry::name_only("Braton Prime Receiver").with_platinum(42),
+            ui_core::RewardCardEntry::name_only("Paris Prime String").with_platinum(15),
+        ];
+
+        sort_reward_cards(&mut items, ResultSort::Platinum);
+
+        assert_eq!(items[0].name, "Braton Prime Receiver");
+        assert_eq!(items[1].name, "Paris Prime String");
+        assert_eq!(items[2].name, "Forma Blueprint");
+    }
+
+    #[test]
+    fn result_sort_sorts_by_highest_ducat_value_first() {
+        let mut items = vec![
+            ui_core::RewardCardEntry::name_only("Paris Prime String").with_ducats(25),
+            ui_core::RewardCardEntry::name_only("Braton Prime Receiver").with_ducats(45),
+            ui_core::RewardCardEntry::name_only("Forma Blueprint").with_ducats(15),
+        ];
+
+        sort_reward_cards(&mut items, ResultSort::Ducats);
+
+        assert_eq!(items[0].name, "Braton Prime Receiver");
+        assert_eq!(items[1].name, "Paris Prime String");
+        assert_eq!(items[2].name, "Forma Blueprint");
+    }
+
+    #[test]
+    fn result_sort_sorts_by_highest_ducat_per_platinum_first() {
+        let mut items = vec![
+            ui_core::RewardCardEntry::name_only("Cheap Ducats")
+                .with_platinum(5)
+                .with_ducats(45),
+            ui_core::RewardCardEntry::name_only("Expensive Ducats")
+                .with_platinum(20)
+                .with_ducats(100),
+            ui_core::RewardCardEntry::name_only("No Price").with_ducats(100),
+            ui_core::RewardCardEntry::name_only("Zero Price")
+                .with_platinum(0)
+                .with_ducats(100),
+        ];
+
+        sort_reward_cards(&mut items, ResultSort::DucatsPerPlatinum);
+
+        assert_eq!(items[0].name, "Cheap Ducats");
+        assert_eq!(items[1].name, "Expensive Ducats");
+        assert_eq!(items[2].name, "No Price");
+        assert_eq!(items[3].name, "Zero Price");
+    }
 }
