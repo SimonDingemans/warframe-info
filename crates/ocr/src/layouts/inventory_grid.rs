@@ -28,17 +28,6 @@ impl InventoryGridLayout {
             ..Self::default()
         }
     }
-
-    pub fn with_safe_band(mut self, top_ratio: f32, bottom_ratio: f32) -> Self {
-        self.safe_top_ratio = top_ratio;
-        self.safe_bottom_ratio = bottom_ratio;
-        self
-    }
-
-    pub fn with_line_y_tolerance(mut self, line_y_tolerance: f32) -> Self {
-        self.line_y_tolerance = line_y_tolerance;
-        self
-    }
 }
 
 impl ItemLayout for InventoryGridLayout {
@@ -168,16 +157,16 @@ mod tests {
 
     #[test]
     fn inventory_layout_groups_text_by_grid_cell() {
-        let layout = InventoryGridLayout::new(2).with_safe_band(0.0, 1.0);
+        let layout = InventoryGridLayout::new(2);
         let image_size = ImageSize {
             width: 1000.0,
             height: 1000.0,
         };
         let blocks = vec![
-            block("Left", 100.0, 100.0, 180.0, 130.0),
-            block("Cell", 190.0, 100.0, 260.0, 130.0),
-            block("Right", 650.0, 100.0, 760.0, 130.0),
-            block("Lower", 100.0, 400.0, 210.0, 430.0),
+            block("Left", 100.0, 200.0, 180.0, 230.0),
+            block("Cell", 190.0, 200.0, 260.0, 230.0),
+            block("Right", 650.0, 200.0, 760.0, 230.0),
+            block("Lower", 100.0, 500.0, 210.0, 530.0),
         ];
 
         assert_eq!(

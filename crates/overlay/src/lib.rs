@@ -1,8 +1,6 @@
 mod display;
 
-pub use display::{
-    DisplayBackend, DisplayOutput, DisplayOutputsFuture, DisplayResult, DynDisplayBackend,
-};
+pub use display::{DisplayBackend, DisplayOutput, DisplayOutputsFuture, DisplayResult};
 
 #[derive(Clone, Debug)]
 pub struct RewardOverlay {

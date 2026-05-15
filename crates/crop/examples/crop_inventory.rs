@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crop::{InventoryCrop, ScreenCrop};
+use crop::{ImageSize, InventoryCrop, ScreenCrop};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let input_dir = fixture_dir("inventory");
@@ -16,7 +16,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     for input_path in input_paths {
         let output_path = output_dir.join(cropped_file_name(&input_path)?);
         let image = image::open(&input_path)?;
-        let cropped = InventoryCrop::default().crop_image(&image)?;
+        let cropper = InventoryCrop::default();
+        let crop = cropper.crop_rect(ImageSize::from_image(&image))?;
+        let cropped = cropper.crop_image(&image)?;
 
         if let Some(parent) = output_path.parent() {
             fs::create_dir_all(parent)?;
@@ -27,7 +29,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         println!("source: {}", input_path.display());
         println!("output: {}", output_path.display());
         println!("source size: {:?}", cropped.source_size);
-        println!("crop: {:?}", cropped.crop);
+        println!("crop: {:?}", crop);
     }
 
     Ok(())

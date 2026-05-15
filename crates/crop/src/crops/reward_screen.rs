@@ -1,4 +1,4 @@
-use crate::{CropResult, ImageSize, PixelRect, RatioRect, ScreenCrop, ScreenCropKind};
+use crate::{CropResult, ImageSize, PixelRect, RatioRect, ScreenCrop};
 
 #[derive(Debug, Clone)]
 pub struct RewardScreenCrop {
@@ -13,22 +13,7 @@ impl Default for RewardScreenCrop {
     }
 }
 
-impl RewardScreenCrop {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_crop(mut self, crop: RatioRect) -> Self {
-        self.crop = crop;
-        self
-    }
-}
-
 impl ScreenCrop for RewardScreenCrop {
-    fn kind(&self) -> ScreenCropKind {
-        ScreenCropKind::RewardScreen
-    }
-
     fn crop_rect(&self, source_size: ImageSize) -> CropResult<PixelRect> {
         self.crop.to_pixel_rect(source_size)
     }

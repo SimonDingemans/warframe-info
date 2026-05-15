@@ -1,34 +1,13 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ItemDatabase {
     items: Vec<WarframeItem>,
-    market_items: Vec<MarketItem>,
 }
 
 impl ItemDatabase {
     pub fn new(items: Vec<WarframeItem>) -> Self {
-        Self {
-            items,
-            market_items: Vec::new(),
-        }
-    }
-
-    pub fn with_market_items(items: Vec<WarframeItem>, market_items: Vec<MarketItem>) -> Self {
-        Self {
-            items,
-            market_items,
-        }
-    }
-
-    pub fn items(&self) -> &[WarframeItem] {
-        &self.items
-    }
-
-    pub fn market_items(&self) -> &[MarketItem] {
-        &self.market_items
+        Self { items }
     }
 
     pub fn find_item(&self, text: &str, threshold: Option<usize>) -> Option<&WarframeItem> {
@@ -59,38 +38,6 @@ impl ItemDatabase {
             .filter_map(|text| self.find_item(text, None).cloned())
             .collect()
     }
-
-    pub fn find_market_item(&self, name: &str) -> Option<&MarketItem> {
-        self.market_items.iter().find(|item| {
-            item.name == name || item.localized_names.values().any(|value| value == name)
-        })
-    }
-
-    pub fn find_market_item_fuzzy(
-        &self,
-        text: &str,
-        threshold: Option<usize>,
-    ) -> Option<&MarketItem> {
-        let needle = searchable_item_name(text);
-
-        if needle.is_empty() {
-            return None;
-        }
-
-        self.market_items
-            .iter()
-            .filter_map(|item| {
-                let distance = market_item_search_names(item)
-                    .into_iter()
-                    .map(|name| levenshtein_distance(&searchable_item_name(name), &needle))
-                    .min()?;
-                let current_threshold = threshold.unwrap_or(item.name.len() / 3);
-
-                (distance <= current_threshold).then_some((item, distance))
-            })
-            .min_by_key(|(_, distance)| *distance)
-            .map(|(item, _)| item)
-    }
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
@@ -108,46 +55,6 @@ impl WarframeItem {
     pub fn platinum_rounded(&self) -> u32 {
         self.platinum.round().max(0.0) as u32
     }
-
-    pub fn summary(&self) -> String {
-        let mut details = Vec::new();
-
-        if self.platinum_rounded() > 0 {
-            details.push(format!("{}p", self.platinum_rounded()));
-        }
-
-        if let Some(ducats) = self.ducats {
-            details.push(format!("{ducats} ducats"));
-        }
-
-        if self.volume > 0 {
-            details.push(format!("{} sold", self.volume));
-        }
-
-        if self.vaulted {
-            details.push("vaulted".to_owned());
-        }
-
-        if details.is_empty() {
-            self.drop_name.clone()
-        } else {
-            format!("{} ({})", self.drop_name, details.join(", "))
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
-pub struct MarketItem {
-    pub slug: String,
-    pub name: String,
-    pub localized_names: HashMap<String, String>,
-}
-
-fn market_item_search_names(item: &MarketItem) -> Vec<&str> {
-    let mut names = Vec::with_capacity(item.localized_names.len() + 1);
-    names.push(item.name.as_str());
-    names.extend(item.localized_names.values().map(String::as_str));
-    names
 }
 
 fn searchable_item_name(name: &str) -> String {
@@ -180,9 +87,7 @@ fn levenshtein_distance(left: &str, right: &str) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
-    use super::{levenshtein_distance, ItemDatabase, MarketItem, WarframeItem};
+    use super::{levenshtein_distance, ItemDatabase, WarframeItem};
 
     #[test]
     fn database_fuzzy_matches_ocr_text_without_matching_sets_by_default() {
@@ -208,47 +113,6 @@ mod tests {
 
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].drop_name, "Ash Prime Systems Blueprint");
-        assert_eq!(
-            items[0].summary(),
-            "Ash Prime Systems Blueprint (22p, 65 ducats, 7 sold, vaulted)"
-        );
-    }
-
-    #[test]
-    fn database_fuzzy_matches_market_item_names_and_translations() {
-        let database = test_database();
-
-        let market_item = database
-            .find_market_item_fuzzy("Plan de Systemes d Ash Prime", None)
-            .expect("localized fuzzy match");
-
-        assert_eq!(market_item.slug, "ash_prime_systems_blueprint");
-    }
-
-    #[test]
-    fn database_matches_market_item_names_and_translations_exactly() {
-        let database = test_database();
-
-        let market_item = database
-            .find_market_item("Plan de Systemes d'Ash Prime")
-            .expect("localized market item");
-
-        assert_eq!(market_item.slug, "ash_prime_systems_blueprint");
-    }
-
-    #[test]
-    fn summary_omits_missing_or_zero_details() {
-        let item = WarframeItem {
-            name: "Arcane Concentration".to_owned(),
-            drop_name: "Arcane Concentration".to_owned(),
-            market_slug: Some("arcane_concentration".to_owned()),
-            platinum: 0.0,
-            ducats: None,
-            volume: 0,
-            vaulted: false,
-        };
-
-        assert_eq!(item.summary(), "Arcane Concentration");
     }
 
     #[test]
@@ -257,35 +121,25 @@ mod tests {
     }
 
     fn test_database() -> ItemDatabase {
-        ItemDatabase::with_market_items(
-            vec![
-                WarframeItem {
-                    name: "Ash Prime Systems".to_owned(),
-                    drop_name: "Ash Prime Systems Blueprint".to_owned(),
-                    market_slug: Some("ash_prime_systems_blueprint".to_owned()),
-                    platinum: 22.0,
-                    ducats: Some(65),
-                    volume: 7,
-                    vaulted: true,
-                },
-                WarframeItem {
-                    name: "Ash Prime Set".to_owned(),
-                    drop_name: "Ash Prime Set".to_owned(),
-                    market_slug: Some("ash_prime_set".to_owned()),
-                    platinum: 80.0,
-                    ducats: None,
-                    volume: 15,
-                    vaulted: true,
-                },
-            ],
-            vec![MarketItem {
-                slug: "ash_prime_systems_blueprint".to_owned(),
-                name: "Ash Prime Systems Blueprint".to_owned(),
-                localized_names: HashMap::from([
-                    ("en".to_owned(), "Ash Prime Systems Blueprint".to_owned()),
-                    ("fr".to_owned(), "Plan de Systemes d'Ash Prime".to_owned()),
-                ]),
-            }],
-        )
+        ItemDatabase::new(vec![
+            WarframeItem {
+                name: "Ash Prime Systems".to_owned(),
+                drop_name: "Ash Prime Systems Blueprint".to_owned(),
+                market_slug: Some("ash_prime_systems_blueprint".to_owned()),
+                platinum: 22.0,
+                ducats: Some(65),
+                volume: 7,
+                vaulted: true,
+            },
+            WarframeItem {
+                name: "Ash Prime Set".to_owned(),
+                drop_name: "Ash Prime Set".to_owned(),
+                market_slug: Some("ash_prime_set".to_owned()),
+                platinum: 80.0,
+                ducats: None,
+                volume: 15,
+                vaulted: true,
+            },
+        ])
     }
 }

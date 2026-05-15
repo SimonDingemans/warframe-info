@@ -3,7 +3,6 @@ use std::{future::Future, pin::Pin};
 pub type DisplayResult<T> = Result<T, String>;
 pub type DisplayOutputsFuture<'a> =
     Pin<Box<dyn Future<Output = DisplayResult<Vec<DisplayOutput>>> + Send + 'a>>;
-pub type DynDisplayBackend = Box<dyn DisplayBackend>;
 
 pub trait DisplayBackend: Send + Sync {
     fn display_outputs(&self) -> DisplayOutputsFuture<'_>;

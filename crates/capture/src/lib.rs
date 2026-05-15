@@ -38,7 +38,6 @@ pub struct ScreenCaptureSource {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CaptureCapabilities {
     pub permission_request: bool,
-    pub permission_reset: bool,
 }
 
 #[derive(Debug, Clone, Default)]

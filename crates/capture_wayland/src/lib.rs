@@ -35,7 +35,6 @@ impl ScreenCapture for WaylandCapture {
     fn capabilities(&self) -> CaptureCapabilities {
         CaptureCapabilities {
             permission_request: is_wayland_session(),
-            permission_reset: true,
         }
     }
 

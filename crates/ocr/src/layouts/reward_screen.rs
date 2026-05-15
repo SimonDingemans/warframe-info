@@ -20,19 +20,6 @@ impl Default for RewardScreenLayout {
     }
 }
 
-impl RewardScreenLayout {
-    pub fn with_safe_band(mut self, top_ratio: f32, bottom_ratio: f32) -> Self {
-        self.safe_top_ratio = top_ratio;
-        self.safe_bottom_ratio = bottom_ratio;
-        self
-    }
-
-    pub fn with_column_gap_ratio(mut self, column_gap_ratio: f32) -> Self {
-        self.column_gap_ratio = column_gap_ratio;
-        self
-    }
-}
-
 impl ItemLayout for RewardScreenLayout {
     type Item = String;
 

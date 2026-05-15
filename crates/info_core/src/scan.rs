@@ -31,8 +31,6 @@ pub struct ScanOutput {
     pub kind: ScanKind,
     pub source_width: u32,
     pub source_height: u32,
-    pub cropped_width: u32,
-    pub cropped_height: u32,
     pub text_block_count: usize,
     pub items: Vec<WarframeItem>,
 }
@@ -66,8 +64,6 @@ fn scan_reward_image(
         kind: ScanKind::Reward,
         source_width: screenshot.width(),
         source_height: screenshot.height(),
-        cropped_width: cropped.image.width(),
-        cropped_height: cropped.image.height(),
         text_block_count: output.text_blocks.len(),
         items: database.find_items(output.items.iter().map(String::as_str)),
     })
@@ -90,8 +86,6 @@ fn scan_inventory_image(
         kind: ScanKind::Inventory,
         source_width: screenshot.width(),
         source_height: screenshot.height(),
-        cropped_width: cropped.image.width(),
-        cropped_height: cropped.image.height(),
         text_block_count: output.text_blocks.len(),
         items: database.find_items(output.items.iter().map(String::as_str)),
     })

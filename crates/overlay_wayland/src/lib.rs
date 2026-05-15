@@ -1,4 +1,4 @@
-use iced::widget::{button, column, container, rule, text};
+use iced::widget::container;
 use iced::{time, Color, Element, Font, Length, Pixels, Renderer, Subscription, Task, Theme};
 use iced_layershell::application;
 use iced_layershell::reexport::{Anchor, KeyboardInteractivity, Layer};
@@ -169,39 +169,6 @@ fn reward_overlay_view<'a>(
             ..Default::default()
         })
         .into()
-}
-
-#[allow(dead_code)]
-fn monitor_info_view(lines: &[String]) -> Element<'_, Message, Theme, Renderer> {
-    let details = lines.iter().fold(column![].spacing(4), |column, line| {
-        column.push(text(line).size(18))
-    });
-
-    container(
-        column![
-            text("wf-info monitor debug").size(24),
-            rule::horizontal(1),
-            details,
-            button("Quit Overlay")
-                .padding([8, 12])
-                .on_press(Message::Close),
-        ]
-        .spacing(8),
-    )
-    .padding(18)
-    .width(Length::Shrink)
-    .height(Length::Shrink)
-    .style(|_theme| container::Style {
-        background: Some(Color::from_rgba(0.04, 0.05, 0.07, 0.82).into()),
-        border: iced::Border {
-            color: Color::from_rgb(0.22, 0.78, 0.72),
-            width: 2.0,
-            radius: 4.0.into(),
-        },
-        text_color: Some(Color::WHITE),
-        ..Default::default()
-    })
-    .into()
 }
 
 #[cfg(test)]

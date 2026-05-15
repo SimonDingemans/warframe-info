@@ -6,7 +6,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use info_core::{ItemDatabase, MarketItem, ScanOutput, WarframeItem};
+use info_core::{ItemDatabase, ScanOutput, WarframeItem};
 use serde::{Deserialize, Serialize};
 use wf_market::{ApiCache, Client, Item, SerializableCache, Unauthenticated};
 
@@ -118,7 +118,7 @@ async fn load_market_index() -> Result<MarketData, String> {
         Ok(client) => {
             let _ = save_cache(&cache_path, &cache);
 
-            let database = item_database_from_market_items(client.items().as_slice());
+            let database = item_database_from_items(client.items().as_slice());
             let price_cache = load_price_cache(&price_cache_path).unwrap_or_default();
 
             Ok(MarketData {
@@ -140,7 +140,7 @@ async fn load_market_index() -> Result<MarketData, String> {
             };
 
             Ok(MarketData {
-                database: item_database_from_market_items(&items),
+                database: item_database_from_items(&items),
                 client: None,
                 price_cache: PriceCache::default(),
                 price_cache_path,
@@ -240,8 +240,7 @@ fn current_unix_time() -> u64 {
         .as_secs()
 }
 
-fn item_database_from_market_items(items: &[Item]) -> ItemDatabase {
-    let mut market_items = Vec::with_capacity(items.len());
+fn item_database_from_items(items: &[Item]) -> ItemDatabase {
     let mut warframe_items = Vec::with_capacity(items.len());
 
     for item in items {
@@ -249,18 +248,11 @@ fn item_database_from_market_items(items: &[Item]) -> ItemDatabase {
             continue;
         }
 
-        let localized_names = localized_names(item);
-        let name = item_name(item, &localized_names);
+        let name = item_name(item);
 
         if name.is_empty() {
             continue;
         }
-
-        market_items.push(MarketItem {
-            slug: item.slug.clone(),
-            name: name.clone(),
-            localized_names,
-        });
 
         warframe_items.push(WarframeItem {
             name: name.clone(),
@@ -273,21 +265,14 @@ fn item_database_from_market_items(items: &[Item]) -> ItemDatabase {
         });
     }
 
-    ItemDatabase::with_market_items(warframe_items, market_items)
+    ItemDatabase::new(warframe_items)
 }
 
-fn localized_names(item: &Item) -> HashMap<String, String> {
+fn item_name(item: &Item) -> String {
     item.i18n
-        .iter()
-        .map(|(language, translation)| (language.clone(), translation.name.clone()))
-        .collect()
-}
-
-fn item_name(item: &Item, localized_names: &HashMap<String, String>) -> String {
-    localized_names
         .get("en")
-        .or_else(|| localized_names.values().next())
-        .cloned()
+        .or_else(|| item.i18n.values().next())
+        .map(|translation| translation.name.clone())
         .unwrap_or_else(|| item.name().to_owned())
 }
 
