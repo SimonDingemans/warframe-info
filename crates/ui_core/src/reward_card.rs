@@ -8,11 +8,7 @@ pub struct RewardCardEntry {
     pub name: String,
     pub platinum: Option<u32>,
     pub ducats: Option<u32>,
-    pub volume: Option<u32>,
     pub vaulted: bool,
-    pub mastered: bool,
-    pub owned_count: Option<u32>,
-    pub required_count: Option<u32>,
     pub highlight: RewardHighlight,
 }
 
@@ -22,11 +18,7 @@ impl RewardCardEntry {
             name: name.into(),
             platinum: None,
             ducats: None,
-            volume: None,
             vaulted: false,
-            mastered: false,
-            owned_count: None,
-            required_count: None,
             highlight: RewardHighlight::None,
         }
     }
@@ -38,11 +30,6 @@ impl RewardCardEntry {
 
     pub fn with_ducats(mut self, ducats: u32) -> Self {
         self.ducats = Some(ducats);
-        self
-    }
-
-    pub fn with_volume(mut self, volume: u32) -> Self {
-        self.volume = Some(volume);
         self
     }
 
@@ -58,7 +45,6 @@ pub enum RewardHighlight {
     None,
     BestPlatinum,
     BestDucats,
-    Needed,
 }
 
 pub fn best_platinum_reward_index(rewards: &[RewardCardEntry]) -> Option<usize> {

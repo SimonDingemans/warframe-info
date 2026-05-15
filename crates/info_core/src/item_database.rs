@@ -22,9 +22,8 @@ impl ItemDatabase {
             .iter()
             .filter(|item| needle_is_set || !item.name.ends_with(" Set"))
             .filter_map(|item| {
-                let distance =
-                    levenshtein_distance(&searchable_item_name(&item.drop_name), &needle);
-                let current_threshold = threshold.unwrap_or(item.drop_name.len() / 3);
+                let distance = levenshtein_distance(&searchable_item_name(&item.name), &needle);
+                let current_threshold = threshold.unwrap_or(item.name.len() / 3);
 
                 (distance <= current_threshold).then_some((item, distance))
             })
@@ -43,11 +42,9 @@ impl ItemDatabase {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct WarframeItem {
     pub name: String,
-    pub drop_name: String,
     pub market_slug: Option<String>,
     pub platinum: f32,
     pub ducats: Option<u32>,
-    pub volume: u32,
     pub vaulted: bool,
 }
 
@@ -97,7 +94,7 @@ mod tests {
             .find_item("ash prime systerns blueprint", None)
             .expect("fuzzy match");
 
-        assert_eq!(item.drop_name, "Ash Prime Systems Blueprint");
+        assert_eq!(item.name, "Ash Prime Systems Blueprint");
         assert_eq!(database.find_item("Ash Prime", None), None);
 
         let set = database
@@ -112,7 +109,7 @@ mod tests {
         let items = database.find_items(["Ash Prime Systerns Blueprint", "unknown"]);
 
         assert_eq!(items.len(), 1);
-        assert_eq!(items[0].drop_name, "Ash Prime Systems Blueprint");
+        assert_eq!(items[0].name, "Ash Prime Systems Blueprint");
     }
 
     #[test]
@@ -123,21 +120,17 @@ mod tests {
     fn test_database() -> ItemDatabase {
         ItemDatabase::new(vec![
             WarframeItem {
-                name: "Ash Prime Systems".to_owned(),
-                drop_name: "Ash Prime Systems Blueprint".to_owned(),
+                name: "Ash Prime Systems Blueprint".to_owned(),
                 market_slug: Some("ash_prime_systems_blueprint".to_owned()),
                 platinum: 22.0,
                 ducats: Some(65),
-                volume: 7,
                 vaulted: true,
             },
             WarframeItem {
                 name: "Ash Prime Set".to_owned(),
-                drop_name: "Ash Prime Set".to_owned(),
                 market_slug: Some("ash_prime_set".to_owned()),
                 platinum: 80.0,
                 ducats: None,
-                volume: 15,
                 vaulted: true,
             },
         ])

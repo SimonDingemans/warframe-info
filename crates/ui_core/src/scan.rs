@@ -16,14 +16,10 @@ pub fn reward_cards_from_scan_output(output: &info_core::ScanOutput) -> Vec<Rewa
 
 pub fn reward_card_from_item(item: &info_core::WarframeItem) -> RewardCardEntry {
     RewardCardEntry {
-        name: item.drop_name.clone(),
+        name: item.name.clone(),
         platinum: Some(item.platinum_rounded()),
         ducats: item.ducats,
-        volume: Some(item.volume),
         vaulted: item.vaulted,
-        mastered: false,
-        owned_count: None,
-        required_count: None,
         highlight: RewardHighlight::None,
     }
 }

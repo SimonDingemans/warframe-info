@@ -171,13 +171,12 @@ fn run_overlay(reward_overlay: RewardOverlay) -> Result<(), String> {
 
 fn reward_arg(item: &WarframeItem) -> String {
     format!(
-        "{}\t{}\t{}\t{}\t{}",
-        item.drop_name,
+        "{}\t{}\t{}\t{}",
+        item.name,
         item.platinum_rounded(),
         item.ducats
             .map(|ducats| ducats.to_string())
             .unwrap_or_default(),
-        item.volume,
         if item.vaulted { "1" } else { "0" }
     )
 }
@@ -186,7 +185,7 @@ fn parse_reward_arg(arg: &OsString) -> RewardCardEntry {
     let value = arg.to_string_lossy();
     let fields = value.split('\t').collect::<Vec<_>>();
 
-    if fields.len() != 5 {
+    if fields.len() != 4 {
         return RewardCardEntry::name_only(value);
     }
 
@@ -198,11 +197,7 @@ fn parse_reward_arg(arg: &OsString) -> RewardCardEntry {
     if let Ok(ducats) = fields[2].parse() {
         reward = reward.with_ducats(ducats);
     }
-    if let Ok(volume) = fields[3].parse() {
-        reward = reward.with_volume(volume);
-    }
-
-    reward.with_vaulted(fields[4] == "1")
+    reward.with_vaulted(fields[3] == "1")
 }
 
 fn parse_output_size(value: &OsString) -> Result<(u32, u32), String> {
@@ -225,22 +220,18 @@ fn test_rewards() -> Vec<RewardCardEntry> {
     vec![
         RewardCardEntry::name_only("Forma Blueprint")
             .with_platinum(8)
-            .with_ducats(0)
-            .with_volume(172),
+            .with_ducats(0),
         RewardCardEntry::name_only("Braton Prime Receiver")
             .with_platinum(42)
             .with_ducats(45)
-            .with_volume(18)
             .with_vaulted(true),
         RewardCardEntry::name_only("Paris Prime String")
             .with_platinum(15)
-            .with_ducats(25)
-            .with_volume(36),
+            .with_ducats(25),
         {
             let mut reward = RewardCardEntry::name_only("Akbronco Prime Link")
                 .with_platinum(24)
-                .with_ducats(45)
-                .with_volume(7);
+                .with_ducats(45);
             reward.highlight = RewardHighlight::BestPlatinum;
             reward
         },

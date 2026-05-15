@@ -21,22 +21,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         rewards: vec![
             RewardCardEntry::name_only("Forma Blueprint")
                 .with_platinum(8)
-                .with_ducats(0)
-                .with_volume(172),
+                .with_ducats(0),
             RewardCardEntry::name_only("Braton Prime Receiver")
                 .with_platinum(42)
                 .with_ducats(45)
-                .with_volume(18)
                 .with_vaulted(true),
             RewardCardEntry::name_only("Paris Prime String")
                 .with_platinum(15)
-                .with_ducats(25)
-                .with_volume(36),
+                .with_ducats(25),
             {
                 let mut reward = RewardCardEntry::name_only("Akbronco Prime Link")
                     .with_platinum(24)
-                    .with_ducats(45)
-                    .with_volume(7);
+                    .with_ducats(45);
                 reward.highlight = RewardHighlight::BestPlatinum;
                 reward
             },

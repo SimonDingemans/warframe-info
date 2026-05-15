@@ -255,12 +255,10 @@ fn item_database_from_items(items: &[Item]) -> ItemDatabase {
         }
 
         warframe_items.push(WarframeItem {
-            name: name.clone(),
-            drop_name: name,
+            name,
             market_slug: Some(item.slug.clone()),
             platinum: 0.0,
             ducats: item.ducats,
-            volume: 0,
             vaulted: item.is_vaulted(),
         });
     }

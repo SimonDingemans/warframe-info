@@ -92,7 +92,6 @@ pub fn reward_card<Message: 'static>(
         text(reward.name).size(16).width(Length::Fill),
         reward_value_with_icon(reward.platinum, assets.platinum_icon.clone()),
         reward_value_with_icon(reward.ducats, assets.ducat_icon.clone()),
-        reward_detail("Sold last 48 hours", reward.volume),
     ]
     .spacing(4);
     let details = if reward.vaulted {
@@ -127,20 +126,6 @@ pub fn reward_card<Message: 'static>(
             ..Default::default()
         })
         .into()
-}
-
-fn reward_detail<Message: 'static>(
-    label: &'static str,
-    value: Option<u32>,
-) -> Element<'static, Message, Theme, Renderer> {
-    text(format!(
-        "{label}: {}",
-        value
-            .map(|value| value.to_string())
-            .unwrap_or_else(|| "Unknown".to_owned())
-    ))
-    .size(14)
-    .into()
 }
 
 fn reward_value_with_icon<Message: 'static>(

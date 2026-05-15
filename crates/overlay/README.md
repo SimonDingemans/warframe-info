@@ -7,8 +7,7 @@ It does not open windows by itself. Platform-specific crates, such as
 
 ## What It Can Do
 
-- Represent reward rows with platinum, ducat, volume, vaulted, ownership, and
-  highlight metadata.
+- Represent reward rows with platinum, ducat, vaulted, and highlight metadata.
 - Carry overlay placement hints such as target output and output size.
 - Expose display output discovery through `DisplayBackend`.
 - Bundle the platinum and ducat icon assets used by overlay renderers.
